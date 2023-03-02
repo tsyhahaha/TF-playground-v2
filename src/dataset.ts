@@ -101,6 +101,7 @@ export function regressGaussian(numSamples: number, noise: number):
     .range([1, 0])
     .clamp(true);
 
+  // 设定两个高斯分布的 Conv
   let gaussians = [
     [-4, 2.5, 1],
     [0, 2.5, -1],
@@ -211,7 +212,7 @@ export function classifyXORData(numSamples: number, noise: number):
  * Uses the seedrandom library as the random generator.
  */
 function randUniform(a: number, b: number) {
-  return Math.random() * (b - a) + a;
+  return Math.random() * (b - a) + a; // 平均分布
 }
 
 /**
@@ -227,9 +228,9 @@ function normalRandom(mean = 0, variance = 1): number {
     v1 = 2 * Math.random() - 1;
     v2 = 2 * Math.random() - 1;
     s = v1 * v1 + v2 * v2;
-  } while (s > 1);
+  } while (s > 1);  // 为何一定要 s < 1
 
-  let result = Math.sqrt(-2 * Math.log(s) / s) * v1;
+  let result = Math.sqrt(-2 * Math.log(s) / s) * v1;  // 这里的实现有问题？
   return mean + Math.sqrt(variance) * result;
 }
 

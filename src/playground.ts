@@ -154,7 +154,7 @@ state.getHiddenProps().forEach(prop => {
 
 let boundary: {[id: string]: number[][]} = {};
 let selectedNodeId: string = null;
-// Plot the heatmap.
+// Plot the heatmap in the right
 let xDomain: [number, number] = [-6, 6];
 let heatMap =
     new HeatMap(300, DENSITY, xDomain, xDomain, d3.select("#heatmap"),
@@ -174,6 +174,8 @@ let network: nn.Node[][] = null;
 let lossTrain = 0;
 let lossTest = 0;
 let player = new Player();
+
+// OUTPUT 中的 line chart
 let lineChart = new AppendingLineChart(d3.select("#linechart"),
     ["#777", "black"]);
 
@@ -548,6 +550,7 @@ function drawNode(cx: number, cy: number, nodeId: string, isInput: boolean,
   if (isInput) {
     div.classed(activeOrNotClass, true);
   }
+  // draw node heatmap
   let nodeHeatMap = new HeatMap(RECT_SIZE, DENSITY / 10, xDomain,
       xDomain, div, {noSvg: true});
   div.datum({heatmap: nodeHeatMap, id: nodeId});

@@ -58,10 +58,11 @@ export function getKeyFromValue(obj: any, value: any): string {
 }
 
 function endsWith(s: string, suffix: string): boolean {
+  // 检查结尾是否为特定字符串
   return s.substr(-suffix.length) === suffix;
 }
 
-function getHideProps(obj: any): string[] {
+function getHideProps(obj: any): string[]{
   let result: string[] = [];
   for (let prop in obj) {
     if (endsWith(prop, HIDE_STATE_SUFFIX)) {
@@ -98,7 +99,7 @@ export interface Property {
   name: string;
   type: Type;
   keyMap?: {[key: string]: any};
-};
+}
 
 // Add the GUI state.
 export class State {
