@@ -30,6 +30,7 @@ import {AppendingLineChart} from "./linechart";
 import * as d3 from 'd3';
 
 let mainWidth;
+// 设置滑动按钮（下方文本区域）
 d3.select(".more button").on("click", function() {
   let position = 800;
   d3.transition()               // 激活过渡效果
@@ -142,13 +143,13 @@ class Player {
   }
 }
 
-// ？？？
+// 反序列化为可解析参数
 let state = State.deserializeState();
 
 // Filter out inputs that are hidden.
 state.getHiddenProps().forEach(prop => {
   if (prop in INPUTS) {
-    delete INPUTS[prop];
+    delete INPUTS[prop];    // 删除未选中参数
   }
 });
 

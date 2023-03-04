@@ -101,7 +101,6 @@ export function regressGaussian(numSamples: number, noise: number):
     .range([1, 0])
     .clamp(true);
 
-  // 设定两个高斯分布的 Conv
   let gaussians = [
     [-4, 2.5, 1],
     [0, 2.5, -1],
@@ -130,7 +129,7 @@ export function regressGaussian(numSamples: number, noise: number):
     let noiseY = randUniform(-radius, radius) * noise;
     let label = getLabel(x + noiseX, y + noiseY);
     points.push({x, y, label});
-  };
+  }
   return points;
 }
 

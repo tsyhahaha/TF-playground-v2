@@ -161,7 +161,7 @@ export class State {
   sinX = false;
   cosY = false;
   sinY = false;
-  dataset: dataset.DataGenerator = dataset.classifyCircleData;
+  dataset: dataset.DataGenerator = dataset.classifyCircleData;  // initial choice
   regDataset: dataset.DataGenerator = dataset.regressPlane;
   seed: string;
 
