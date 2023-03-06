@@ -377,13 +377,13 @@ export function updateWeights(network: Node[][], learningRate: number,
 
 //怎么加入正则化项
 
-/** Iterates over every node in the network/ */
+/** Iterates over every node in the network */
 export function forEachNode(network: Node[][], ignoreInputs: boolean,
     accessor: (node: Node) => any) {
   for (let layerIdx = ignoreInputs ? 1 : 0;
       layerIdx < network.length;
       layerIdx++) {
-    let currentLayer = network[layerIdx];
+    let currentLayer = network[layerIdx]; // 同样是个数组
     for (let i = 0; i < currentLayer.length; i++) {
       let node = currentLayer[i];
       accessor(node);
@@ -392,6 +392,7 @@ export function forEachNode(network: Node[][], ignoreInputs: boolean,
 }
 
 /** Returns the output node in the network. */
+// 貌似不论是回归还是分类，最终都只有一个输出节点
 export function getOutputNode(network: Node[][]) {
   return network[network.length - 1][0];
 }
