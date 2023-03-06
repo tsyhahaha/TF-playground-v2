@@ -89,6 +89,7 @@ let HIDABLE_CONTROLS = [
   ["Ratio train data", "percTrainData"],
   ["Noise level", "noise"],
   ["Batch size", "batchSize"],
+  ["Normalization", "normalization"],
   ["# of hidden layers", "numHiddenLayers"],
 ];
 
@@ -358,6 +359,7 @@ function makeGUI() {
   });
   learningRate.property("value", state.learningRate);
 
+  // Regularization selector
   let regularDropdown = d3.select("#regularizations").on("change",
       function() {
     state.regularization = regularizations[this.value];
@@ -367,7 +369,17 @@ function makeGUI() {
   regularDropdown.property("value",
       getKeyFromValue(regularizations, state.regularization));
 
-  // Regularization selector
+  // Normalization selector
+  let normalizationDropdown = d3.select("#normalization").on("change",
+      function() {
+        state.normalization = regularizations[this.value];
+        parametersChanged = true;
+        reset();
+      });
+  normalizationDropdown.property("value",
+      getKeyFromValue(regularizations, state.normalization));
+
+  // Regularization rate selector
   let regularRate = d3.select("#regularRate").on("change", function() {
     state.regularizationRate = +this.value;
     parametersChanged = true;
