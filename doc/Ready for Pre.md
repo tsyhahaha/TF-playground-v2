@@ -6,6 +6,7 @@ TSY：
 
 * 参与开发名为《走马Go》的校园体育课程网站，基于 vue.js，负责大部分的前端开发。
 * 自学部分 cs231 和 cs229 网课，有较为完整的机器学习基础
+* 数学建模中多次运用神经网络解决回归、预测等问题
 
 XZQ：
 
@@ -43,17 +44,27 @@ src
 
 ### 1、UI 草图
 
-（先放着占个坑，后期需要做出有关新功能的初步草图设计）
+![image-20230306163916524](https://20220923img.oss-cn-hangzhou.aliyuncs.com/markdown/image-20230306163916524.png)
 
-![image-20230302215913811](https://20220923img.oss-cn-hangzhou.aliyuncs.com/markdown/image-20230302215913811.png)
+考虑实现分行显示（ control 部分），不然会超出范围，这个应该好写
 
 ### 2、功能实现设计
 
-> 这部分感觉要突出这两类东西的功能，突出**加上和没加上的区别**，可能需要添加一些记录用的参数，譬如收敛时间等
+> 这部分感觉要突出这两类东西的功能，突出**加上和没加上的区别**，可能需要添加一些记录用的参数，譬如收敛时迭代次数等
 
 #### Batch Normalization / Layer Normalization
 
-这部分应该作为一个参数选择项
+**1、Batch Normalization**
+
+forwarding
+
+![这里写图片描述](https://img-blog.csdn.net/20170428223053354?watermark/2/text/aHR0cDovL2Jsb2cuY3Nkbi5uZXQvcXFfMzQ2OTUxNDc=/font/5a6L5L2T/fontsize/400/fill/I0JBQkFCMA==/dissolve/70/gravity/SouthEast)
+
+backpropgation
+
+![这里写图片描述](https://img-blog.csdn.net/20170428223746406?watermark/2/text/aHR0cDovL2Jsb2cuY3Nkbi5uZXQvcXFfMzQ2OTUxNDc=/font/5a6L5L2T/fontsize/400/fill/I0JBQkFCMA==/dissolve/70/gravity/SouthEast)
+
+2、Layer Normalization
 
 #### Adam
 
