@@ -131,3 +131,5 @@ Weight Normalization https://arxiv.org/abs/1602.07868
 Spectrum Normalization https://arxiv.org/abs/1705.10941
 
 因为要求是至少完成Batch 与 Layer ,先给出以下：
+
+### Batch Normalization
