@@ -112,3 +112,22 @@ class Adam(OptimizerBase):
  
 ```
 
+
+
+## Normalization
+
+有以下几种常见，可以在实现中添加：
+
+Batch Renormalization https://arxiv.org/abs/1702.03275
+
+ Layer Normalization https://arxiv.org/abs/1607.06450 
+
+Instance Normalization https://arxiv.org/abs/1607.08022 
+
+Group Normalization https://arxiv.org/abs/1803.08494 
+
+Weight Normalization https://arxiv.org/abs/1602.07868 
+
+Spectrum Normalization https://arxiv.org/abs/1705.10941
+
+因为要求是至少完成Batch 与 Layer ,先给出以下：
