@@ -375,7 +375,7 @@ export function updateWeights(network: Node[][], learningRate: number,
   }
 }
 
-//怎么加入正则化项
+
 
 /** Iterates over every node in the network */
 export function forEachNode(network: Node[][], ignoreInputs: boolean,
