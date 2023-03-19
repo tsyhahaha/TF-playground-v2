@@ -375,6 +375,8 @@ export function updateWeights(network: Node[][], learningRate: number,
   }
 }
 
+/**
+
 
 
 /** Iterates over every node in the network */
