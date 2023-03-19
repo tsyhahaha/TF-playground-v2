@@ -133,3 +133,17 @@ Spectrum Normalization https://arxiv.org/abs/1705.10941
 因为要求是至少完成Batch 与 Layer ,先给出以下：
 
 ### Batch Normalization
+
+per channel <img src="https://pic1.zhimg.com/80/v2-73b3fe43dd4bc9e917ecc7d6cc7b5374_720w.webp" alt="img" style="zoom:50%;" />across mini batch
+
+
+
+![](微信截图_20230306211039.png)
+
+### Layer Normalization
+
+per sample per layer
+
+![](微信截图_20230306212050.png)
+
+初始化可以改，层数能加？
