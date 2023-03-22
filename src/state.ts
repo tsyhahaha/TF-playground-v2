@@ -167,6 +167,8 @@ export class State {
   numHiddenLayers = 1;
   hiddenLayerControls: any[] = [];
   networkShape: number[] = [4, 2];
+  converge_epoch = 0
+  initial_loss = 0
   x = true;
   y = true;
   xTimesY = false;

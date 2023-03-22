@@ -928,7 +928,7 @@ function updateUI(firstStep = false) {
   // Update loss and iteration number.
   d3.select("#loss-train").text(humanReadable(lossTrain));
   d3.select("#loss-test").text(humanReadable(lossTest));
-  d3.select("#converge-epoch").text(0);
+  d3.select("#now-converge-epoch").text(state.converge_epoch);
   d3.select("#iter-number").text(addCommas(zeroPad(iter)));
   lineChart.addDataPoint([lossTrain, lossTest]);
 }
@@ -973,6 +973,13 @@ function oneStep(): void {
   // Compute the loss.
   lossTrain = getLoss(network, trainData);
   lossTest = getLoss(network, testData);
+  if(iter == 1) {
+    state.initial_loss = lossTrain
+  } else {
+    if (state.converge_epoch == 0 && lossTrain <= 0.10 * state.initial_loss) {
+      state.converge_epoch = iter
+    }
+  }
   updateUI();
 }
 
@@ -992,6 +999,10 @@ export function getOutputWeights(network: nn.Node[][]): number[] {
 }
 
 function reset(onStartup=false) {
+  if(state.converge_epoch > 0) {
+    d3.select("#converge-epoch").text(state.converge_epoch);
+  }
+  state.converge_epoch = 0
   lineChart.reset();
   state.serialize();
   if (!onStartup) {
