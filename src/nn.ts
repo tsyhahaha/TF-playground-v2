@@ -332,6 +332,64 @@ export function backProp(network: Node[][], target: number,
  * Updates the weights of the network using the previously accumulated error
  * derivatives.
  */
+/**
+ * 使用Adam方法更新神经网络中的权重和偏置。
+ * @param network - 神经网络，由节点层组成的二维数组。
+ * @param learningRate - 学习率，表示在每次迭代中应用于权重和偏置的更新量。
+ * @param beta1 - Adam方法的一阶动量衰减率。
+ * @param beta2 - Adam方法的二阶动量衰减率。
+ * @param epsilon - 防止除零错误的小量值。
+ */
+export function updateWeightsAdam(network: Node[][], learningRate: number,
+                                  beta1: number, beta2: number, epsilon: number) {
+  let m: number[][][] = [];  // 一阶动量
+  let v: number[][][] = [];  // 二阶动量
+  let t = 0;  // 时间步长
+  for (let layerIdx = 1; layerIdx < network.length; layerIdx++) {
+    let currentLayer = network[layerIdx];
+    m[layerIdx] = new Array(currentLayer.length);
+    v[layerIdx] = new Array(currentLayer.length);
+    for (let i = 0; i < currentLayer.length; i++) {
+      let node = currentLayer[i];
+      // 初始化一阶动量和二阶动量
+      m[layerIdx][i] = new Array(node.inputLinks.length + 1).fill(0);
+      v[layerIdx][i] = new Array(node.inputLinks.length + 1).fill(0);
+      // 更新节点的偏置
+      if (node.numAccumulatedDers > 0) {
+        node.bias -= learningRate * node.accInputDer / node.numAccumulatedDers;
+        node.accInputDer = 0;
+        node.numAccumulatedDers = 0;
+      }
+      // 更新输入到该节点的权重
+      for (let j = 0; j < node.inputLinks.length; j++) {
+        let link = node.inputLinks[j];
+        if (link.isDead) {
+          continue;
+        }
+        if (m[layerIdx][i][j] === undefined) {
+          m[layerIdx][i][j] = 0;
+        }
+        if (v[layerIdx][i][j] === undefined) {
+          v[layerIdx][i][j] = 0;
+        }
+        if (link.numAccumulatedDers > 0) {
+          // 更新一阶动量和二阶动量
+          m[layerIdx][i][j] = beta1 * m[layerIdx][i][j] + (1 - beta1) * link.accErrorDer / link.numAccumulatedDers;
+          v[layerIdx][i][j] = beta2 * v[layerIdx][i][j] + (1 - beta2) * Math.pow(link.accErrorDer / link.numAccumulatedDers, 2);
+          t += 1;
+          // 计算修正后的一阶动量和二阶动量
+          let mHat = m[layerIdx][i][j] / (1 - Math.pow(beta1, t));
+          let vHat = v[layerIdx][i][j] / (1 - Math.pow(beta2, t));
+          // // 更新权重
+          link.weight -= (learningRate / (Math.sqrt(vHat) + epsilon)) * mHat;
+          // 重置累计梯度
+          link.accErrorDer = 0;
+          link.numAccumulatedDers = 0;
+        }
+      }
+    }
+  }
+}
 export function updateWeights(network: Node[][], learningRate: number,
     regularizationRate: number) {
   for (let layerIdx = 1; layerIdx < network.length; layerIdx++) {
@@ -374,6 +432,8 @@ export function updateWeights(network: Node[][], learningRate: number,
     }
   }
 }
+
+/**
 
 
 
