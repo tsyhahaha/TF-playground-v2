@@ -341,7 +341,7 @@ export function backProp(network: Node[][], target: number,
  * @param epsilon - 防止除零错误的小量值。
  */
 export function updateWeightsAdam(network: Node[][], learningRate: number,
-                                  beta1: number, beta2: number, epsilon: number) {
+                                  beta1: number=0.99, beta2: number=0.999, epsilon: number=10e-8) {
   let m: number[][][] = [];  // 一阶动量
   let v: number[][][] = [];  // 二阶动量
   let t = 0;  // 时间步长
@@ -352,8 +352,8 @@ export function updateWeightsAdam(network: Node[][], learningRate: number,
     for (let i = 0; i < currentLayer.length; i++) {
       let node = currentLayer[i];
       // 初始化一阶动量和二阶动量
-      m[layerIdx][i] = new Array(node.inputLinks.length + 1).fill(0);
-      v[layerIdx][i] = new Array(node.inputLinks.length + 1).fill(0);
+      m[layerIdx][i] = new Array(node.inputLinks.length + 1);
+      v[layerIdx][i] = new Array(node.inputLinks.length + 1);
       // 更新节点的偏置
       if (node.numAccumulatedDers > 0) {
         node.bias -= learningRate * node.accInputDer / node.numAccumulatedDers;

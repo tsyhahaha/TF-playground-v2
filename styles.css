@@ -233,6 +233,7 @@ header h1 .optional {
 #top-controls {
   border-bottom: 1px solid #ddd;
   padding: 18px 0;
+  width: 100%;
   box-shadow: 0 1px 4px rgba(0,0,0,0.08);
   background: white;
 }
@@ -243,6 +244,21 @@ header h1 .optional {
   }
 }
 
+.mainControl{
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-content: center;
+  flex-wrap: nowrap;
+}
+
+.paramControl {
+  width: 100%;
+  display: flex;
+  flex-direction: row;
+  flex-flow: row wrap;
+}
+
 #top-controls .container {
   display: -webkit-box;
   display: -moz-box;
@@ -250,7 +266,7 @@ header h1 .optional {
   display: -webkit-flex;
   display: flex;
   -webkit-justify-content: space-betweenspace-between;
-  justify-content: space-between;
+  /*justify-content: space-between;*/
 }
 
 #top-controls .timeline-controls {
@@ -289,6 +305,14 @@ header h1 .optional {
   min-width: 110px;
   margin-left: 30px;
   margin-top: 6px;
+}
+
+#top-controls .textCenter {
+  display: flex;
+  flex-direction: column;
+  text-align: center;
+  align-items: center;
+  justify-content: center;
 }
 
 #top-controls .control .label,

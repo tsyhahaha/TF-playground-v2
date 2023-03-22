@@ -23,7 +23,7 @@ import {
   problems,
   regularizations,
   getKeyFromValue,
-  Problem
+  Problem, optimizers, normalizations
 } from "./state";
 import {Example2D, shuffle} from "./dataset";
 import {AppendingLineChart} from "./linechart";
@@ -225,7 +225,7 @@ function makeGUI() {
     if (newDataset === state.dataset) {
       return; // No-op.
     }
-    state.dataset =  newDataset;
+    state.dataset = newDataset;
     dataThumbnails.classed("selected", false);  // 先 unset 所有的 canvas 部分
     d3.select(this).classed("selected", true);  // 再 set 被选中的 canvas 部分
     generateData();
@@ -341,7 +341,7 @@ function makeGUI() {
   batchSize.property("value", state.batchSize);
   d3.select("label[for='batchSize'] .value").text(state.batchSize);
 
-  // activation function selector
+  // activation function selector，添加监听函数
   let activationDropdown = d3.select("#activations").on("change", function() {
     state.activation = activations[this.value];
     parametersChanged = true;
@@ -370,14 +370,24 @@ function makeGUI() {
       getKeyFromValue(regularizations, state.regularization));
 
   // Normalization selector
-  let normalizationDropdown = d3.select("#normalization").on("change",
+  let optimizerDropdown = d3.select("#normalization").on("change",
       function() {
-        state.normalization = regularizations[this.value];
+        state.normalization = normalizations[this.value];
+        parametersChanged = true;
+        reset();
+      });
+  optimizerDropdown.property("value",
+      getKeyFromValue(normalizations, state.normalization));
+
+  // Optimizer selector
+  let normalizationDropdown = d3.select("#optimizer").on("change",
+      function() {
+        state.optimizer= optimizers[this.value];
         parametersChanged = true;
         reset();
       });
   normalizationDropdown.property("value",
-      getKeyFromValue(regularizations, state.normalization));
+      getKeyFromValue(regularizations, state.optimizer));
 
   // Regularization rate selector
   let regularRate = d3.select("#regularRate").on("change", function() {
@@ -918,6 +928,7 @@ function updateUI(firstStep = false) {
   // Update loss and iteration number.
   d3.select("#loss-train").text(humanReadable(lossTrain));
   d3.select("#loss-test").text(humanReadable(lossTest));
+  d3.select("#converge-epoch").text(0);
   d3.select("#iter-number").text(addCommas(zeroPad(iter)));
   lineChart.addDataPoint([lossTrain, lossTest]);
 }
@@ -949,7 +960,14 @@ function oneStep(): void {
     nn.forwardProp(network, input);
     nn.backProp(network, point.label, nn.Errors.SQUARE);
     if ((i + 1) % state.batchSize === 0) {
-      nn.updateWeights(network, state.learningRate, state.regularizationRate);
+      if (state.optimizer === 0) {
+        nn.updateWeights(network,
+            state.learningRate,
+            state.regularizationRate);
+      } else if (state.optimizer === 1) {
+        nn.updateWeightsAdam(network,
+            state.learningRate)
+      }
     }
   });
   // Compute the loss.

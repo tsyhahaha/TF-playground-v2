@@ -48,6 +48,19 @@ export let regDatasets: {[key: string]: dataset.DataGenerator} = {
   "reg-gauss": dataset.regressGaussian
 };
 
+/** A map between normalization names and flag. */
+export let normalizations: {[key: string]: number} = {
+  "none": 0,
+  "BN": 1,
+  "LN": 2
+};
+
+/** A map between optimizer names and flag. */
+export let optimizers: {[key: string]: number} = {
+  "SGD": 0,
+  "Adam": 1,
+};
+
 export function getKeyFromValue(obj: any, value: any): string {
   for (let key in obj) {
     if (obj[key] === value) {
@@ -145,6 +158,8 @@ export class State {
   percTrainData = 50;
   activation = nn.Activations.TANH;
   regularization: nn.RegularizationFunction = null;
+  normalization = 0 // 暂时用俩数字 flag 表示选择结果
+  optimizer = 0  // 暂时用俩数字 flag 表示选择结果
   problem = Problem.CLASSIFICATION;
   initZero = false;
   hideText = false;
