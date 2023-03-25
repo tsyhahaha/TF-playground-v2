@@ -603,7 +603,7 @@ function drawNetwork(network: nn.Node[][]): void {
     .attr("transform", `translate(${padding},${padding})`);
   // Draw the network layer by layer.
   let numLayers = network.length;
-  let featureWidth = 118;
+  let featureWidth = 100;
   let layerScale = d3.scale.ordinal<number, number>()
       .domain(d3.range(1, numLayers - 1))
       .rangePoints([featureWidth, width - RECT_SIZE], 0.7);
@@ -628,7 +628,7 @@ function drawNetwork(network: nn.Node[][]): void {
   // Draw the intermediate layers.
   for (let layerIdx = 1; layerIdx < numLayers - 1; layerIdx++) {
     let numNodes = network[layerIdx].length;
-    let cx = layerScale(layerIdx) + RECT_SIZE / 2;
+    let cx = layerScale(layerIdx) + RECT_SIZE / 2;  // 隐藏层的横向位置
     maxY = Math.max(maxY, nodeIndexScale(numNodes));
     addPlusMinusControl(layerScale(layerIdx), layerIdx);
     for (let i = 0; i < numNodes; i++) {
@@ -675,6 +675,7 @@ function drawNetwork(network: nn.Node[][]): void {
         }
       }
     }
+    // 应该是这个地方加选项器
   }
 
   // Draw the output node separately.
@@ -869,9 +870,10 @@ function updateDecisionBoundary(network: nn.Node[][], firstTime: boolean) {
       let x = xScale(i);
       let y = yScale(j);
       let input = constructInput(x, y);
-      nn.forwardProp(network, input);
+      nn.forwardProp(network, [input], 1);
       nn.forEachNode(network, true, node => {
-        boundary[node.id][i][j] = node.output;
+        boundary[node.id][i][j] = node.averageOutput;
+        // console.log(node.id+" ["+i+"]["+j+"] "+node.averageOutput)
       });
       if (firstTime) {
         // Go through all predefined inputs.
@@ -888,8 +890,8 @@ function getLoss(network: nn.Node[][], dataPoints: Example2D[]): number {
   for (let i = 0; i < dataPoints.length; i++) {
     let dataPoint = dataPoints[i];
     let input = constructInput(dataPoint.x, dataPoint.y);
-    let output = nn.forwardProp(network, input);
-    loss += nn.Errors.SQUARE.error(output, dataPoint.label);
+    let output = nn.forwardProp(network, [input], 1);
+    loss += nn.Errors.SQUARE.error(output[0], dataPoint.label);
   }
   return loss / dataPoints.length;
 }
@@ -953,21 +955,40 @@ function constructInput(x: number, y: number): number[] {
   return input;
 }
 
+function getInputLength(): number {
+  let num = 0;
+  for (let inputName in INPUTS) {
+    if (state[inputName]) {
+      num++;
+    }
+  }
+  return num;
+}
+
 function oneStep(): void {
   iter++;
+  let inputMatrix = []
+  state.nowSize = 0
+  let labelList = []
   trainData.forEach((point, i) => {
     let input = constructInput(point.x, point.y);
-    nn.forwardProp(network, input);
-    nn.backProp(network, point.label, nn.Errors.SQUARE);
-    if ((i + 1) % state.batchSize === 0) {
+    inputMatrix.push(input);
+    labelList.push(point.label);
+    state.nowSize += 1;
+    if (state.nowSize % state.batchSize === 0) {
+      nn.forwardProp(network, inputMatrix, state.nowSize);
+      nn.backProp(network, labelList, nn.Errors.SQUARE, state.nowSize);
       if (state.optimizer === 0) {
-        nn.updateWeights(network,
+        nn.updateWeightsSGD(network,
             state.learningRate,
             state.regularizationRate);
       } else if (state.optimizer === 1) {
         nn.updateWeightsAdam(network,
             state.learningRate)
       }
+      inputMatrix = [];
+      state.nowSize = 0;
+      labelList = []
     }
   });
   // Compute the loss.

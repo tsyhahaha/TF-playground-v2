@@ -12,7 +12,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
-
 /**
  * A node in a neural network. Each node has a state
  * (total input, output, and their respectively derivatives) which changes
@@ -25,23 +24,24 @@ export class Node {
   bias = 0.1;
   /** List of output links. */
   outputs: Link[] = [];
-  totalInput: number;
-  output: number;
+  totalInput: number[] = [];
+  output: number[]=[];
+  averageOutput: number;
   /** Error derivative with respect to this node's output. */
-  outputDer = 0;
+  outputDer: number[]=[];
   /** Error derivative with respect to this node's total input. */
-  inputDer = 0;
+  inputDer: number[]=[];
   /**
    * Accumulated error derivative with respect to this node's total input since
    * the last update. This derivative equals dE/db where b is the node's
    * bias term.
    */
-  accInputDer = 0;
+  // accInputDer = 0;
   /**
    * Number of accumulated err. derivatives with respect to the total input
    * since the last update.
    */
-  numAccumulatedDers = 0;
+  // numAccumulatedDers = 0;
   /** Activation function that takes total input and returns node's output */
   activation: ActivationFunction;
 
@@ -57,14 +57,28 @@ export class Node {
   }
 
   /** Recomputes the node's output and returns it. */
-  updateOutput(): number {
+  updateOutput(batchSize:number): number[] {
     // Stores total input into the node.
-    this.totalInput = this.bias;
+    // this.totalInput = this.bias;
+    for(let i = 0; i< batchSize; i++) {
+      this.totalInput[i] = this.bias;
+    }
+    // console.log("totalInput+bias: "+this.totalInput);
+
     for (let j = 0; j < this.inputLinks.length; j++) {
       let link = this.inputLinks[j];
-      this.totalInput += link.weight * link.source.output;
+      for(let i = 0; i<batchSize; i++) {
+        // console.log("weight: "+link.weight+", source: "+link.source.output[i])
+        this.totalInput[i] += link.weight * link.source.output[i];
+      }
     }
-    this.output = this.activation.output(this.totalInput);
+    this.averageOutput = 0
+    // console.log("totalInput+weight: "+this.totalInput)
+    for(let i = 0; i < batchSize; i++) {
+      this.output[i] = this.activation.output(this.totalInput[i]);
+      this.averageOutput += this.output[i]
+    }
+    this.averageOutput /= this.output.length
     return this.output;
   }
 }
@@ -248,25 +262,28 @@ export function buildNetwork(
  * @param network The neural network.
  * @param inputs The input array. Its length should match the number of input
  *     nodes in the network.
+ * @param batchSize
  * @return The final output of the network.
  */
-export function forwardProp(network: Node[][], inputs: number[]): number {
+export function forwardProp(network: Node[][], inputs: number[][], batchSize: number): number[] {
   let inputLayer = network[0];
-  if (inputs.length !== inputLayer.length) {
+  if (inputs[0].length !== inputLayer.length) {
     throw new Error("The number of inputs must match the number of nodes in" +
         " the input layer");
   }
   // Update the input layer.
   for (let i = 0; i < inputLayer.length; i++) {
     let node = inputLayer[i];
-    node.output = inputs[i];
+    for(let j = 0; j < batchSize; j++) {
+      node.output[j]=inputs[j][i];  // 第 j 条数据的第 i 个特征
+    }
   }
   for (let layerIdx = 1; layerIdx < network.length; layerIdx++) {
     let currentLayer = network[layerIdx];
     // Update all the nodes in this layer.
     for (let i = 0; i < currentLayer.length; i++) {
       let node = currentLayer[i];
-      node.updateOutput();
+      node.updateOutput(batchSize);
     }
   }
   return network[network.length - 1][0].output;
@@ -279,13 +296,14 @@ export function forwardProp(network: Node[][], inputs: number[]): number {
  * derivatives with respect to each node, and each weight
  * in the network.
  */
-export function backProp(network: Node[][], target: number,
-    errorFunc: ErrorFunction): void {
+export function backProp(network: Node[][], target: number[],
+    errorFunc: ErrorFunction, batchSize: number): void {
   // The output node is a special case. We use the user-defined error
   // function for the derivative.
   let outputNode = network[network.length - 1][0];
-  outputNode.outputDer = errorFunc.der(outputNode.output, target);
-
+  for(let i=0; i < batchSize; i++) {
+    outputNode.outputDer[i] = errorFunc.der(outputNode.output[i], target[i]);
+  }
   // Go through the layers backwards.
   for (let layerIdx = network.length - 1; layerIdx >= 1; layerIdx--) {
     let currentLayer = network[layerIdx];
@@ -294,11 +312,10 @@ export function backProp(network: Node[][], target: number,
     // 2) each of its input weights.
     for (let i = 0; i < currentLayer.length; i++) {
       let node = currentLayer[i];
-      node.inputDer = node.outputDer * node.activation.der(node.totalInput);
-      node.accInputDer += node.inputDer;
-      node.numAccumulatedDers++;
+      for(let j=0; j<batchSize; j++) {
+        node.inputDer[j] = node.outputDer[j] * node.activation.der(node.totalInput[j]);
+      }
     }
-
     // Error derivative with respect to each weight coming into the node.
     for (let i = 0; i < currentLayer.length; i++) {
       let node = currentLayer[i];
@@ -307,11 +324,14 @@ export function backProp(network: Node[][], target: number,
         if (link.isDead) {
           continue;
         }
-        link.errorDer = node.inputDer * link.source.output;
-        link.accErrorDer += link.errorDer;
-        link.numAccumulatedDers++;
+        for(let k=0; k<batchSize; k++) {
+          link.errorDer = node.inputDer[k] * link.source.output[k];
+          link.accErrorDer += link.errorDer;
+          link.numAccumulatedDers++;
+        }
       }
     }
+    // Compute derivative with respect to prev layer's output
     if (layerIdx === 1) {
       continue;
     }
@@ -319,10 +339,14 @@ export function backProp(network: Node[][], target: number,
     for (let i = 0; i < prevLayer.length; i++) {
       let node = prevLayer[i];
       // Compute the error derivative with respect to each node's output.
-      node.outputDer = 0;
+      for (let j = 0; j < batchSize; j++) {
+        node.outputDer[j] = 0;
+      }
       for (let j = 0; j < node.outputs.length; j++) {
         let output = node.outputs[j];
-        node.outputDer += output.weight * output.dest.inputDer;
+        for(let k=0; k < batchSize; k++) {
+          node.outputDer[k] += output.weight * output.dest.inputDer[k];
+        }
       }
     }
   }
@@ -355,10 +379,16 @@ export function updateWeightsAdam(network: Node[][], learningRate: number,
       m[layerIdx][i] = new Array(node.inputLinks.length + 1);
       v[layerIdx][i] = new Array(node.inputLinks.length + 1);
       // 更新节点的偏置
-      if (node.numAccumulatedDers > 0) {
-        node.bias -= learningRate * node.accInputDer / node.numAccumulatedDers;
-        node.accInputDer = 0;
-        node.numAccumulatedDers = 0;
+      let numAccumulatedDers = node.inputDer.length
+      let accInputDer = 0
+      for(let j=0; j<node.inputDer.length; j++) {
+        accInputDer += node.inputDer[j];
+      }
+      if (numAccumulatedDers > 0) {
+        node.bias -= learningRate * accInputDer / numAccumulatedDers;
+        for(let j=0; j<node.inputDer.length; j++) {
+          node.inputDer[i] = 0;
+        }
       }
       // 更新输入到该节点的权重
       for (let j = 0; j < node.inputLinks.length; j++) {
@@ -380,7 +410,7 @@ export function updateWeightsAdam(network: Node[][], learningRate: number,
           // 计算修正后的一阶动量和二阶动量
           let mHat = m[layerIdx][i][j] / (1 - Math.pow(beta1, t));
           let vHat = v[layerIdx][i][j] / (1 - Math.pow(beta2, t));
-          // // 更新权重
+          // 更新权重
           link.weight -= (learningRate / (Math.sqrt(vHat) + epsilon)) * mHat;
           // 重置累计梯度
           link.accErrorDer = 0;
@@ -390,17 +420,23 @@ export function updateWeightsAdam(network: Node[][], learningRate: number,
     }
   }
 }
-export function updateWeights(network: Node[][], learningRate: number,
-    regularizationRate: number) {
+export function updateWeightsSGD(network: Node[][], learningRate: number,
+                                 regularizationRate: number) {
   for (let layerIdx = 1; layerIdx < network.length; layerIdx++) {
     let currentLayer = network[layerIdx];
     for (let i = 0; i < currentLayer.length; i++) {
       let node = currentLayer[i];
       // Update the node's bias.
-      if (node.numAccumulatedDers > 0) {
-        node.bias -= learningRate * node.accInputDer / node.numAccumulatedDers;
-        node.accInputDer = 0;
-        node.numAccumulatedDers = 0;
+      let numAccumulatedDers = node.inputDer.length
+      let accInputDer = 0
+      for(let j=0; j<node.inputDer.length; j++) {
+        accInputDer += node.inputDer[j];
+      }
+      if (numAccumulatedDers > 0) {
+        node.bias -= learningRate * accInputDer / numAccumulatedDers;
+        for(let j=0; j<node.inputDer.length; j++) {
+          node.inputDer[i] = 0;
+        }
       }
       // Update the weights coming into this node.
       for (let j = 0; j < node.inputLinks.length; j++) {
@@ -412,8 +448,7 @@ export function updateWeights(network: Node[][], learningRate: number,
             link.regularization.der(link.weight) : 0;
         if (link.numAccumulatedDers > 0) {
           // Update the weight based on dE/dw.
-          link.weight = link.weight -
-              (learningRate / link.numAccumulatedDers) * link.accErrorDer;
+          link.weight -= (learningRate / link.numAccumulatedDers) * link.accErrorDer;
           // Further update the weight based on regularization.
           let newLinkWeight = link.weight -
               (learningRate * regularizationRate) * regulDer;
@@ -432,10 +467,6 @@ export function updateWeights(network: Node[][], learningRate: number,
     }
   }
 }
-
-/**
-
-
 
 /** Iterates over every node in the network */
 export function forEachNode(network: Node[][], ignoreInputs: boolean,

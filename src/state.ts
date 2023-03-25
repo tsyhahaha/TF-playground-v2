@@ -153,6 +153,7 @@ export class State {
   showTestData = false;
   noise = 0;
   batchSize = 10;
+  nowSize = 0;
   discretize = false;
   tutorial: string = null;
   percTrainData = 50;
