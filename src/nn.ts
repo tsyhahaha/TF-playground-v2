@@ -25,26 +25,31 @@ export class Node {
   /** List of output links. */
   outputs: Link[] = [];
   totalInput: number[] = [];
-  output: number[] = [];
+  output: number[]=[];
   averageOutput: number;
   /** Error derivative with respect to this node's output. */
-  outputDer: number[] = [];
+  outputDer: number[]=[];
   /** Error derivative with respect to this node's total input. */
-  inputDer: number[] = [];
+  inputDer: number[]=[];
+  /**
+   * Accumulated error derivative with respect to this node's total input since
+   * the last update. This derivative equals dE/db where b is the node's
+   * bias term.
+   */
+  // accInputDer = 0;
+  /**
+   * Number of accumulated err. derivatives with respect to the total input
+   * since the last update.
+   */
+  // numAccumulatedDers = 0;
   /** Activation function that takes total input and returns node's output */
   activation: ActivationFunction;
-  /** 1:batchnorm 2:layernorm */
-  normalization: number
-
-  /**normalization layer */
-  normlayer: NormalizationLayer
 
   /**
    * Creates a new node with the provided id and activation function.
    */
-  constructor(id: string,normalization:number, activation: ActivationFunction, initZero?: boolean) {
+  constructor(id: string, activation: ActivationFunction, initZero?: boolean) {
     this.id = id;
-    this.normalization=normalization
     this.activation = activation;
     if (initZero) {
       this.bias = 0;
@@ -52,14 +57,18 @@ export class Node {
   }
 
   /** Recomputes the node's output and returns it. */
-  updateOutput(batchSize: number): number[] {
-    for (let i = 0; i < batchSize; i++) {
+  updateOutput(batchSize:number): number[] {
+    // Stores total input into the node.
+    // this.totalInput = this.bias;
+    for(let i = 0; i< batchSize; i++) {
       this.totalInput[i] = this.bias;
     }
+    // console.log("totalInput+bias: "+this.totalInput);
 
     for (let j = 0; j < this.inputLinks.length; j++) {
       let link = this.inputLinks[j];
-      for (let i = 0; i < batchSize; i++) {
+      for(let i = 0; i<batchSize; i++) {
+        // console.log("weight: "+link.weight+", source: "+link.source.output[i])
         this.totalInput[i] += link.weight * link.source.output[i];
       }
     }
@@ -73,222 +82,6 @@ export class Node {
     return this.output;
   }
 }
-const Copy = (obj) => {
-  let copy;
-
-  // Handle the 3 simple types, and null or undefined
-  if (obj === null || typeof obj !== "object") return obj;
-
-  // Handle Date
-  if (obj instanceof Date) {
-    copy = new Date();
-    copy.setTime(obj.getTime());
-    return copy;
-  }
-
-  // Handle Array
-  if (Array.isArray(obj)) {
-    copy = obj.map((item) => deepCopy(item));
-    return copy;
-  }
-
-  // Handle Object
-  if (obj instanceof Object) {
-    copy = {};
-    Object.keys(obj).forEach((key) => {
-      if (obj.hasOwnProperty(key)) {
-        copy[key] = deepCopy(obj[key]);
-      }
-    });
-    return copy;
-  }
-
-  throw new Error("Unable to copy obj");
-};
-
-
-type NormLayer = {
-  gamma: number[];
-  beta: number[];
-  variances: number[];
-  input: number[][];
-  output: number[][];
-  dGamma: number[];
-  dBeta: number[];
-  dX: number[][];
-
-  m_t_gamma: number[];
-  m_t_beta: number[];
-  v_t_gamma: number[];
-  v_t_beta: number[];
-
-  forward(X: number[][], mode: string): number[][];
-  backward(dY: number[][]): number[][];
-};
-
-export class BatchNorm implements NormLayer {
-  movingMean: number[];
-  movingVar: number[];
-  batchMean: number[];
-  batchVar: number[];
-  gamma: number[];
-  beta: number[];
-  epsilon: number;
-  decayRate: number;
-  Xhat: number[][];
-  input: number[][];
-  output: number[][];
-
-  m_t_gamma: number[];
-  m_t_beta: number[];
-  v_t_gamma: number[];
-  v_t_beta: number[];
-
-  dGamma: number[];
-  dBeta: number[];
-  dX: number[][];
-
-  constructor(width: number) {
-    this.movingMean = new Array(width);
-    this.movingVar = new Array(width);
-    this.gamma = new Array(width);
-    this.beta = new Array(width);
-    this.epsilon = 1e-5;
-    this.decayRate = 0.95;
-    this.m_t_gamma = new Array(width);
-    this.m_t_beta = new Array(width);
-    this.v_t_gamma = new Array(width);
-    this.v_t_beta = new Array(width);
-
-    for (let i = 0; i < width; i++) {
-      this.movingMean[i] = 0;
-      this.movingVar[i] = 0;
-      this.gamma[i] = 1;
-      this.beta[i] = 0;
-      this.m_t_gamma[i] = 0;
-      this.m_t_beta[i] = 0;
-      this.v_t_gamma[i] = 0;
-      this.v_t_beta[i] = 0;
-    }
-  }
-
-  forward(X: number[][], mode: string): number[][] {
-    this.input = Copy(X);
-    this.output = Copy(X);
-    let Xhat = Copy(X);
-    let L = X.length;
-    let N = X[0].length;
-    let mean = new Array(L);
-    let variances = new Array(L);
-    if (mode === 'eval') {
-      for (let i = 0; i < L; i++) {
-        for (let j = 0; j < N; j++) {
-          Xhat[i][j] = (X[i][j] - this.movingMean[i]) / Math.sqrt(this.movingVar[i] + this.epsilon);
-          this.output[i][j] = this.gamma[i] * Xhat[i][j] + this.beta[i];
-        }
-      }
-      return this.output;
-    }
-    for (let i = 0; i < L; i++) {
-      mean[i] = 0;
-      variances[i] = 0;
-      for (let j = 0; j < N; j++) {
-        mean[i] += X[i][j];
-      }
-      mean[i] /= N;
-      for (let j = 0; j < N; j++) {
-        variances[i] += (X[i][j] - mean[i]) * (X[i][j] - mean[i]);
-      }
-      variances[i] = variances[i] / N;
-      for (let j =0; j < N; j++) {
-        Xhat[i][j] = (X[i][j] - mean[i]) / Math.sqrt(variances[i] + this.epsilon);
-        this.output[i][j] = this.gamma[i] * Xhat[i][j] + this.beta[i];
-      }
-      this.movingMean[i] = this.decayRate * this.movingMean[i] + (1 - this.decayRate) * mean[i];
-      this.movingVar[i] = this.decayRate * this.movingVar[i] + (1 - this.decayRate) * variances[i];
-    }
-    this.Xhat = Copy(Xhat);
-    this.batchMean = Copy(mean);
-    this.batchVar = Copy(variances);
-    return this.output;
-  }
-
-  backward(dY: number[][]): number[][] {
-    let L = dY.length;
-    let N = dY[0].length;
-    this.dX = Copy(dY);
-    this.dGamma = new Array(N);
-    this.dBeta = new Array(N);
-    for (let i = 0; i < L; i++) {
-      this.dBeta[i] = 0;
-      this.dGamma[i] = 0;
-      for (let j = 0; j < N; j++) {
-        this.dBeta[i] += dY[i][j];
-        this.dGamma[i] += dY[i][j] * this.Xhat[i][j];
-      }
-    }
-    for (let i = 0; i < L; i++) {
-      let dVar = 0;
-      let dMean = 0;
-      let k = Math.sqrt((this.batchVar[i] + this.epsilon) * (this.batchVar[i] + this.epsilon) * (this.batchVar[i] + this.epsilon));
-      for (let j = 0; j < N; j++) {
-        dVar += dY[i][j] * this.gamma[i] * (this.input[i][j] - this.batchMean[i]) * -0.5 / k;
-        dMean += -dY[i][j] * this.gamma[i] / Math.sqrt(this.batchVar[i] + this.epsilon);
-      }
-      for (let j = 0; j < N; j++) {
-        this.dX[i][j] += dY[i][j] * this.gamma[i] / Math.sqrt(this.batchVar[i] + this.epsilon) + dVar * 2 * (this.input[i][j] - this.batchMean[i]) / N + dMean / N;
-      }
-    }
-    return this.dX;
-  }
-}
-
-
-export class LayerNorm implements NormLayer {
-
-  gamma: number[];
-  beta: number[];
-  epsilon: number;
-  input: number[][];
-  Xhat: number[][];
-  output: number[][];
-  variances: number[];
-  dGamma: number[];
-  dBeta: number[];
-  dX: number[][];
-
-  m_t_gamma: number[];
-  m_t_beta: number[];
-  v_t_gamma: number[];
-  v_t_beta: number[];
-
-  constructor(width: number) {
-    this.gamma = new Array(width);
-    this.beta = new Array(width);
-    this.m_t_gamma = new Array(width);
-    this.m_t_beta = new Array(width);
-    this.v_t_gamma = new Array(width);
-    this.v_t_beta = new Array(width);
-    this.epsilon = 1e-5;
-    for (let i = 0; i < width; i++) {
-      this.gamma[i] = 1;
-      this.beta[i] = 0;
-      this.m_t_gamma[i] = 0;
-      this.m_t_beta[i] = 0;
-      this.v_t_gamma[i] = 0;
-      this.v_t_beta[i] = 0;
-    }
-  }
-
-  forward(X: number[][], mode: string): number[][] {
-
-  }
-
-  // layer normalization back propagation
-  backward(dY: number[][]): number[][] {
-   // todo: implement layer normalization back propagation
-}
-
 
 /**
  * An error function and its derivative.
@@ -357,7 +150,6 @@ export class Activations {
   };
 }
 
-
 /** Build-in regularization functions */
 export class RegularizationFunction {
   public static L1: RegularizationFunction = {
@@ -410,7 +202,6 @@ export class Link {
   }
 }
 
-
 /**
  * Builds a neural network.
  *
@@ -424,14 +215,11 @@ export class Link {
  *     no regularization.
  * @param inputIds List of ids for the input nodes.
  */
-
-// Add `useBatchNormalization` and `useLayerNormalization` to the function parameters.
 export function buildNetwork(
-    networkShape: number[],normalization:number, activation: ActivationFunction,
+    networkShape: number[], activation: ActivationFunction,
     outputActivation: ActivationFunction,
     regularization: RegularizationFunction,
-    inputIds: string[], initZero?: boolean,
-   ): Node[][] {
+    inputIds: string[], initZero?: boolean): Node[][] {
   let numLayers = networkShape.length;
   let id = 1;
   /** List of layers, with each layer being a list of nodes. */
@@ -442,13 +230,6 @@ export function buildNetwork(
     let currentLayer: Node[] = [];
     network.push(currentLayer);
     let numNodes = networkShape[layerIdx];
-    let normlayer: NormLayer;
-    if (normalization === 1 && !isInputLayer && !isOutputLayer) {
-      normlayer = new BatchNorm(numNodes);
-    }
-    if (normalization === 2 && !isInputLayer && !isOutputLayer) {
-      normlayer = new LayerNorm(numNodes);
-    }
     for (let i = 0; i < numNodes; i++) {
       let nodeId = id.toString();
       if (isInputLayer) {
@@ -467,21 +248,11 @@ export function buildNetwork(
           prevNode.outputs.push(link);
           node.inputLinks.push(link);
         }
-
-        // Add Batch Normalization or Layer Normalization if requested.
-        if (useBatchNormalization && !isInputLayer && !isOutputLayer) {
-          let bn = new BatchNormalization();
-          node.addNormalization(bn);
-        } else if (useLayerNormalization && !isInputLayer && !isOutputLayer) {
-          let ln = new LayerNormalization();
-          node.addNormalization(ln);
-        }
       }
     }
   }
   return network;
 }
-
 
 /**
  * Runs a forward propagation of the provided input through the provided
