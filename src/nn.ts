@@ -73,38 +73,6 @@ export class Node {
     return this.output;
   }
 }
-const Copy = (obj) => {
-  let copy;
-
-  // Handle the 3 simple types, and null or undefined
-  if (obj === null || typeof obj !== "object") return obj;
-
-  // Handle Date
-  if (obj instanceof Date) {
-    copy = new Date();
-    copy.setTime(obj.getTime());
-    return copy;
-  }
-
-  // Handle Array
-  if (Array.isArray(obj)) {
-    copy = obj.map((item) => deepCopy(item));
-    return copy;
-  }
-
-  // Handle Object
-  if (obj instanceof Object) {
-    copy = {};
-    Object.keys(obj).forEach((key) => {
-      if (obj.hasOwnProperty(key)) {
-        copy[key] = deepCopy(obj[key]);
-      }
-    });
-    return copy;
-  }
-
-  throw new Error("Unable to copy obj");
-};
 
 
 type NormLayer = {
