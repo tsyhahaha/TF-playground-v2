@@ -73,6 +73,7 @@ export class Node {
     return this.output;
   }
 }
+
 function Copy(X: number[][]): number[][] {
   let copy = [];
   for (let i = 0; i < X.length; i++) {
@@ -80,6 +81,14 @@ function Copy(X: number[][]): number[][] {
     for (let j = 0; j < X[i].length; j++) {
       copy[i][j] = X[i][j];
     }
+  }
+  return copy;
+}
+
+function Copy1D(X: number[]): number[] {
+  let copy = [];
+  for (let i = 0; i < X.length; i++) {
+    copy[i] = X[i];
   }
   return copy;
 }
@@ -131,6 +140,8 @@ export class BatchNormalization implements NormLayer {
     this.varMoving = new Array(dim);
     this.alpha = new Array(dim);
     this.delta = new Array(dim);
+    this.batchAvg = new Array(dim);
+    this.batchVar = new Array(dim);
     this.eps = 1e-5;
     this.rateDecay = 0.95;
     this.m_t_alpha = new Array(dim);
@@ -143,6 +154,8 @@ export class BatchNormalization implements NormLayer {
       this.varMoving[i] = 0;
       this.alpha[i] = 1;
       this.delta[i] = 0;
+      this.batchAvg[i] = 0;
+      this.batchVar[i] = 0;
       this.m_t_alpha[i] = 0;
       this.m_t_delta[i] = 0;
       this.v_t_alpha[i] = 0;
@@ -176,8 +189,8 @@ export class BatchNormalization implements NormLayer {
       this.varMoving[i] = this.rateDecay * this.varMoving[i] + (1 - this.rateDecay) * dispersion[i];
     }
     this.Xnorm = Copy(Xnorm);
-    this.batchAvg = Copy(average);
-    this.batchVar = Copy(dispersion);
+    this.batchAvg = Copy1D(average);
+    this.batchVar = Copy1D(dispersion);
     return this.outputData;
   }
 
@@ -271,7 +284,7 @@ export class LayerNormalization implements NormLayer {
       }
     }
     this.Xnorm = Copy(Xnorm);
-    this.varData = Copy(varData);
+    this.varData = Copy1D(varData);
     return this.outputData;
   }
   backward(dOutput: number[][]): number[][] {
@@ -304,9 +317,6 @@ export class LayerNormalization implements NormLayer {
 
   dispersion: number[];
 
-  backforward(dOutput: number[][]): number[][] {
-    return [];
-  }
 }
 
 
