@@ -18,275 +18,305 @@ limitations under the License.
  * after every forward and back propagation run.
  */
 export class Node {
-  id: string;
-  /** List of input links. */
-  inputLinks: Link[] = [];
-  bias = 0.1;
-  /** List of output links. */
-  outputs: Link[] = [];
-  totalInput: number[] = [];
-  output: number[] = [];
-  averageOutput: number;
-  /** Error derivative with respect to this node's output. */
-  outputDer: number[] = [];
-  /** Error derivative with respect to this node's total input. */
-  inputDer: number[] = [];
-  /** Activation function that takes total input and returns node's output */
-  activation: ActivationFunction;
-  /** 1:batchnorm 2:layernorm */
-  normalization: number
+    id: string;
+    /** List of input links. */
+    inputLinks: Link[] = [];
+    bias = 0.1;
+    /** List of output links. */
+    outputs: Link[] = [];
+    totalInput: number[] = [];
+    output: number[] = [];
+    averageOutput: number;
+    /** Error derivative with respect to this node's output. */
+    outputDer: number[] = [];
+    /** Error derivative with respect to this node's total input. */
+    inputDer: number[] = [];
+    /** Activation function that takes total input and returns node's output */
+    activation: ActivationFunction;
+    /** 1:batchnorm 2:layernorm */
+    normalization: number
 
-  /**normalization layer */
-  normlayer: NormalizationLayer
+    /**normalization layer */
+    normlayer: NormLayer
 
-  /**
-   * Creates a new node with the provided id and activation function.
-   */
-  constructor(id: string,normalization:number, activation: ActivationFunction, initZero?: boolean) {
-    this.id = id;
-    this.normalization=normalization
-    this.activation = activation;
-    if (initZero) {
-      this.bias = 0;
-    }
-  }
-
-  /** Recomputes the node's output and returns it. */
-  updateOutput(batchSize: number): number[] {
-    for (let i = 0; i < batchSize; i++) {
-      this.totalInput[i] = this.bias;
+    /**
+     * Creates a new node with the provided id and activation function.
+     */
+    constructor(id: string,normalization:number, activation: ActivationFunction, initZero?: boolean) {
+        this.id = id;
+        this.normalization=normalization
+        this.activation = activation;
+        if (initZero) {
+            this.bias = 0;
+        }
     }
 
-    for (let j = 0; j < this.inputLinks.length; j++) {
-      let link = this.inputLinks[j];
-      for (let i = 0; i < batchSize; i++) {
-        this.totalInput[i] += link.weight * link.source.output[i];
-      }
+    /** Recomputes the node's output and returns it. */
+    updateOutput(batchSize: number): number[] {
+        for (let i = 0; i < batchSize; i++) {
+            this.totalInput[i] = this.bias;
+        }
+
+        for (let j = 0; j < this.inputLinks.length; j++) {
+            let link = this.inputLinks[j];
+            for (let i = 0; i < batchSize; i++) {
+                this.totalInput[i] += link.weight * link.source.output[i];
+            }
+        }
+        this.averageOutput = 0
+        // console.log("totalInput+weight: "+this.totalInput)
+        for(let i = 0; i < batchSize; i++) {
+            this.output[i] = this.activation.output(this.totalInput[i]);
+            this.averageOutput += this.output[i]
+        }
+        this.averageOutput /= this.output.length
+        return this.output;
     }
-    this.averageOutput = 0
-    // console.log("totalInput+weight: "+this.totalInput)
-    for(let i = 0; i < batchSize; i++) {
-      this.output[i] = this.activation.output(this.totalInput[i]);
-      this.averageOutput += this.output[i]
-    }
-    this.averageOutput /= this.output.length
-    return this.output;
-  }
 }
-const Copy = (obj) => {
-  let copy;
 
-  // Handle the 3 simple types, and null or undefined
-  if (obj === null || typeof obj !== "object") return obj;
-
-  // Handle Date
-  if (obj instanceof Date) {
-    copy = new Date();
-    copy.setTime(obj.getTime());
+function Copy(X: number[][]): number[][] {
+    let copy = [];
+    for (let i = 0; i < X.length; i++) {
+        copy[i] = [];
+        for (let j = 0; j < X[i].length; j++) {
+            copy[i][j] = X[i][j];
+        }
+    }
     return copy;
-  }
+}
 
-  // Handle Array
-  if (Array.isArray(obj)) {
-    copy = obj.map((item) => deepCopy(item));
+function Copy1D(X: number[]): number[] {
+    let copy = [];
+    for (let i = 0; i < X.length; i++) {
+        copy[i] = X[i];
+    }
     return copy;
-  }
-
-  // Handle Object
-  if (obj instanceof Object) {
-    copy = {};
-    Object.keys(obj).forEach((key) => {
-      if (obj.hasOwnProperty(key)) {
-        copy[key] = deepCopy(obj[key]);
-      }
-    });
-    return copy;
-  }
-
-  throw new Error("Unable to copy obj");
-};
-
+}
 
 type NormLayer = {
-  gamma: number[];
-  beta: number[];
-  variances: number[];
-  input: number[][];
-  output: number[][];
-  dGamma: number[];
-  dBeta: number[];
-  dX: number[][];
+    alpha: number[];
+    delta: number[];
+    dispersion: number[];
+    inputData: number[][];
+    outputData: number[][];
+    dAlpha: number[];
+    dDelta: number[];
+    dInput: number[][];
 
-  m_t_gamma: number[];
-  m_t_beta: number[];
-  v_t_gamma: number[];
-  v_t_beta: number[];
+    m_t_alpha: number[];
+    m_t_delta: number[];
+    v_t_alpha: number[];
+    v_t_delta: number[];
 
-  forward(X: number[][], mode: string): number[][];
-  backward(dY: number[][]): number[][];
+    forward(X: number[][], type: string): number[][];
+    backward(dOutput: number[][]): number[][];
 };
 
-export class BatchNorm implements NormLayer {
-  movingMean: number[];
-  movingVar: number[];
-  batchMean: number[];
-  batchVar: number[];
-  gamma: number[];
-  beta: number[];
-  epsilon: number;
-  decayRate: number;
-  Xhat: number[][];
-  input: number[][];
-  output: number[][];
+export class BatchNormalization implements NormLayer {
+    dispersion: number[];
+    avgMoving: number[];
+    varMoving: number[];
+    batchAvg: number[];
+    batchVar: number[];
+    alpha: number[];
+    delta: number[];
+    eps: number;
+    rateDecay: number;
+    Xnorm: number[][];
+    inputData: number[][];
+    outputData: number[][];
 
-  m_t_gamma: number[];
-  m_t_beta: number[];
-  v_t_gamma: number[];
-  v_t_beta: number[];
+    m_t_alpha: number[];
+    m_t_delta: number[];
+    v_t_alpha: number[];
+    v_t_delta: number[];
 
-  dGamma: number[];
-  dBeta: number[];
-  dX: number[][];
+    dAlpha: number[];
+    dDelta: number[];
+    dInput: number[][];
 
-  constructor(width: number) {
-    this.movingMean = new Array(width);
-    this.movingVar = new Array(width);
-    this.gamma = new Array(width);
-    this.beta = new Array(width);
-    this.epsilon = 1e-5;
-    this.decayRate = 0.95;
-    this.m_t_gamma = new Array(width);
-    this.m_t_beta = new Array(width);
-    this.v_t_gamma = new Array(width);
-    this.v_t_beta = new Array(width);
+    constructor(dim: number) {
+        this.avgMoving = new Array(dim);
+        this.varMoving = new Array(dim);
+        this.alpha = new Array(dim);
+        this.delta = new Array(dim);
+        this.batchAvg = new Array(dim);
+        this.batchVar = new Array(dim);
+        this.eps = 1e-5;
+        this.rateDecay = 0.95;
+        this.m_t_alpha = new Array(dim);
+        this.m_t_delta = new Array(dim);
+        this.v_t_alpha = new Array(dim);
+        this.v_t_delta = new Array(dim);
 
-    for (let i = 0; i < width; i++) {
-      this.movingMean[i] = 0;
-      this.movingVar[i] = 0;
-      this.gamma[i] = 1;
-      this.beta[i] = 0;
-      this.m_t_gamma[i] = 0;
-      this.m_t_beta[i] = 0;
-      this.v_t_gamma[i] = 0;
-      this.v_t_beta[i] = 0;
-    }
-  }
-
-  forward(X: number[][], mode: string): number[][] {
-    this.input = Copy(X);
-    this.output = Copy(X);
-    let Xhat = Copy(X);
-    let L = X.length;
-    let N = X[0].length;
-    let mean = new Array(L);
-    let variances = new Array(L);
-    if (mode === 'eval') {
-      for (let i = 0; i < L; i++) {
-        for (let j = 0; j < N; j++) {
-          Xhat[i][j] = (X[i][j] - this.movingMean[i]) / Math.sqrt(this.movingVar[i] + this.epsilon);
-          this.output[i][j] = this.gamma[i] * Xhat[i][j] + this.beta[i];
+        for (let i = 0; i < dim; i++) {
+            this.avgMoving[i] = 0;
+            this.varMoving[i] = 0;
+            this.alpha[i] = 1;
+            this.delta[i] = 0;
+            this.batchAvg[i] = 0;
+            this.batchVar[i] = 0;
+            this.m_t_alpha[i] = 0;
+            this.m_t_delta[i] = 0;
+            this.v_t_alpha[i] = 0;
+            this.v_t_delta[i] = 0;
         }
-      }
-      return this.output;
     }
-    for (let i = 0; i < L; i++) {
-      mean[i] = 0;
-      variances[i] = 0;
-      for (let j = 0; j < N; j++) {
-        mean[i] += X[i][j];
-      }
-      mean[i] /= N;
-      for (let j = 0; j < N; j++) {
-        variances[i] += (X[i][j] - mean[i]) * (X[i][j] - mean[i]);
-      }
-      variances[i] = variances[i] / N;
-      for (let j =0; j < N; j++) {
-        Xhat[i][j] = (X[i][j] - mean[i]) / Math.sqrt(variances[i] + this.epsilon);
-        this.output[i][j] = this.gamma[i] * Xhat[i][j] + this.beta[i];
-      }
-      this.movingMean[i] = this.decayRate * this.movingMean[i] + (1 - this.decayRate) * mean[i];
-      this.movingVar[i] = this.decayRate * this.movingVar[i] + (1 - this.decayRate) * variances[i];
-    }
-    this.Xhat = Copy(Xhat);
-    this.batchMean = Copy(mean);
-    this.batchVar = Copy(variances);
-    return this.output;
-  }
 
-  backward(dY: number[][]): number[][] {
-    let L = dY.length;
-    let N = dY[0].length;
-    this.dX = Copy(dY);
-    this.dGamma = new Array(N);
-    this.dBeta = new Array(N);
-    for (let i = 0; i < L; i++) {
-      this.dBeta[i] = 0;
-      this.dGamma[i] = 0;
-      for (let j = 0; j < N; j++) {
-        this.dBeta[i] += dY[i][j];
-        this.dGamma[i] += dY[i][j] * this.Xhat[i][j];
-      }
+    forward(X: number[][], type: string): number[][] {
+        this.inputData = Copy(X);
+        this.outputData = Copy(X);
+        let Xnorm = Copy(X);
+        let L = X.length;
+        let N = X[0].length;
+        let average = new Array(L);
+        let dispersion = new Array(L);
+        for (let i = 0; i < L; i++) {
+            average[i] = 0;
+            dispersion[i] = 0;
+            for (let j = 0; j < N; j++) {
+                average[i] += X[i][j];
+            }
+            average[i] /= N;
+            for (let j = 0; j < N; j++) {
+                dispersion[i] += (X[i][j] - average[i])^2;
+            }dispersion[i] = dispersion[i] / N;
+            for (let j = 0; j < N; j++){
+                Xnorm[i][j] = (X[i][j] - average[i]) / Math.sqrt(dispersion[i] + this.eps);
+                this.outputData[i][j] = this.alpha[i] * Xnorm[i][j] + this.delta[i];
+            }
+            this.avgMoving[i] = this.rateDecay * this.avgMoving[i] + (1 - this.rateDecay) * average[i];
+            this.varMoving[i] = this.rateDecay * this.varMoving[i] + (1 - this.rateDecay) * dispersion[i];
+        }
+        this.Xnorm = Copy(Xnorm);
+        this.batchAvg = Copy1D(average);
+        this.batchVar = Copy1D(dispersion);
+        return this.outputData;
     }
-    for (let i = 0; i < L; i++) {
-      let dVar = 0;
-      let dMean = 0;
-      let k = Math.sqrt((this.batchVar[i] + this.epsilon) * (this.batchVar[i] + this.epsilon) * (this.batchVar[i] + this.epsilon));
-      for (let j = 0; j < N; j++) {
-        dVar += dY[i][j] * this.gamma[i] * (this.input[i][j] - this.batchMean[i]) * -0.5 / k;
-        dMean += -dY[i][j] * this.gamma[i] / Math.sqrt(this.batchVar[i] + this.epsilon);
-      }
-      for (let j = 0; j < N; j++) {
-        this.dX[i][j] += dY[i][j] * this.gamma[i] / Math.sqrt(this.batchVar[i] + this.epsilon) + dVar * 2 * (this.input[i][j] - this.batchMean[i]) / N + dMean / N;
-      }
+
+    backward(dOutput: number[][]): number[][] {
+        let L = dOutput.length;
+        let N = dOutput[0].length;
+        this.dInput = Copy(dOutput);
+        this.dAlpha = new Array(N);
+        this.dDelta = new Array(N);
+        for (let i = 0; i < L; i++) {
+            this.dDelta[i] = 0;
+            this.dAlpha[i] = 0;
+            for (let j = 0; j < N; j++) {
+                this.dDelta[i] += dOutput[i][j];
+                this.dAlpha[i] += dOutput[i][j] * this.Xnorm[i][j];
+            }
+        }
+        for (let i = 0; i < L; i++) {
+            let dDisp = 0;
+            let dAvg = 0;
+            let k = Math.sqrt((this.batchVar[i] + this.eps) * (this.batchVar[i] + this.eps) * (this.batchVar[i] + this.eps));
+            for (let j = 0; j < N; j++) {
+                dDisp += dOutput[i][j] * this.alpha[i] * (this.inputData[i][j] - this.batchAvg[i]) * -0.5 / k;
+                dAvg += -dOutput[i][j] * this.alpha[i] / Math.sqrt(this.batchVar[i] + this.eps);
+            }
+            for (let j = 0; j < N; j++) {
+                this.dInput[i][j] += dOutput[i][j] * this.alpha[i] / Math.sqrt(this.batchVar[i] + this.eps) + dDisp * 2 * (this.inputData[i][j] - this.batchAvg[i]) / N + dAvg / N;
+            }
+        }
+        return this.dInput;
     }
-    return this.dX;
-  }
 }
 
+export class LayerNormalization implements NormLayer {
 
-export class LayerNorm implements NormLayer {
+    alpha: number[];
+    delta: number[];
+    epsVal: number;
+    inputData: number[][];
+    Xnorm: number[][];
+    outputData: number[][];
+    varData: number[];
+    dAlpha: number[];
+    dDelta: number[];
+    dInput: number[][];
+    m_t_alpha: number[];
+    m_t_delta: number[];
+    v_t_alpha: number[];
+    v_t_delta: number[];
 
-  gamma: number[];
-  beta: number[];
-  epsilon: number;
-  input: number[][];
-  Xhat: number[][];
-  output: number[][];
-  variances: number[];
-  dGamma: number[];
-  dBeta: number[];
-  dX: number[][];
-
-  m_t_gamma: number[];
-  m_t_beta: number[];
-  v_t_gamma: number[];
-  v_t_beta: number[];
-
-  constructor(width: number) {
-    this.gamma = new Array(width);
-    this.beta = new Array(width);
-    this.m_t_gamma = new Array(width);
-    this.m_t_beta = new Array(width);
-    this.v_t_gamma = new Array(width);
-    this.v_t_beta = new Array(width);
-    this.epsilon = 1e-5;
-    for (let i = 0; i < width; i++) {
-      this.gamma[i] = 1;
-      this.beta[i] = 0;
-      this.m_t_gamma[i] = 0;
-      this.m_t_beta[i] = 0;
-      this.v_t_gamma[i] = 0;
-      this.v_t_beta[i] = 0;
+    constructor(dim: number) {
+        this.alpha = new Array(dim);
+        this.delta = new Array(dim);
+        this.m_t_alpha = new Array(dim);
+        this.m_t_delta = new Array(dim);
+        this.v_t_alpha = new Array(dim);
+        this.v_t_delta = new Array(dim);
+        this.epsVal = 1e-5;
+        for (let i = 0; i < dim; i++) {
+            this.alpha[i] = 1;
+            this.delta[i] = 0;
+            this.m_t_alpha[i] = 0;
+            this.m_t_delta[i] = 0;
+            this.v_t_alpha[i] = 0;
+            this.v_t_delta[i] = 0;
+        }
     }
-  }
 
-  forward(X: number[][], mode: string): number[][] {
+    forward(X: number[][], mode: string): number[][] {
+        this.inputData = Copy(X);
+        this.outputData = Copy(X);
+        let D = X.length;
+        let N = X[0].length;
+        let avg = new Array(N);
+        let varData = new Array(N);
+        let Xnorm = Copy(X);
+        for (let i = 0; i < N; i++) {
+            avg[i] = 0;
+            varData[i] = 0;
+            for (let j = 0; j < D; j++) {
+                avg[i] += X[j][i];
+            }
+            avg[i] /= D;
+            for (let j = 0; j < D; j++) {
+                varData[i] += (X[j][i] - avg[i]) * (X[j][i] - avg[i]);
+            }
+            varData[i] = Math.sqrt(varData[i] / D + this.epsVal);
+            for (let j = 0; j < D; j++) {
+                Xnorm[j][i] = (X[j][i] - avg[i]) / varData[i];
+                this.outputData[j][i] = this.alpha[j] * Xnorm[j][i] + this.delta[j];
+            }
+        }
+        this.Xnorm = Copy(Xnorm);
+        this.varData = Copy1D(varData);
+        return this.outputData;
+    }
+    backward(dOutput: number[][]): number[][] {
+        let D = dOutput.length;
+        let N = dOutput[0].length;
+        this.dInput = Copy(dOutput);
+        this.dAlpha = new Array(D);
+        this.dDelta = new Array(D);
+        for (let j = 0; j < D; j++) {
+            this.dDelta[j] = 0;
+            this.dAlpha[j] = 0;
+            for (let i = 0; i < N; i++) {
+                this.dDelta[j] += dOutput[j][i];
+                this.dAlpha[j] += dOutput[j][i] * this.Xnorm[j][i];
+            }
+        }
+        for (let i = 0; i < N; i++) {
+            let sumdXnorm = 0;
+            let sumdXnormX = 0;
+            for (let k = 0; k < D; k++) {
+                sumdXnorm += (dOutput[k][i] * this.alpha[k]);
+                sumdXnormX += (dOutput[k][i] * this.alpha[k] * this.Xnorm[k][i]);
+            }
+            for (let j = 0; j < D; j++) {
+                this.dInput[j][i] = 1 / (D * this.varData[i]) * (D * dOutput[j][i] * this.alpha[j] - this.Xnorm[j][i] * sumdXnormX - sumdXnorm);
+            }
+        }
+        return this.dInput;
+    }
 
-  }
+    dispersion: number[];
 
-  // layer normalization back propagation
-  backward(dY: number[][]): number[][] {
-   // todo: implement layer normalization back propagation
 }
 
 
@@ -294,80 +324,80 @@ export class LayerNorm implements NormLayer {
  * An error function and its derivative.
  */
 export interface ErrorFunction {
-  error: (output: number, target: number) => number;
-  der: (output: number, target: number) => number;
+    error: (output: number, target: number) => number;
+    der: (output: number, target: number) => number;
 }
 
 /** A node's activation function and its derivative. */
 export interface ActivationFunction {
-  output: (input: number) => number;
-  der: (input: number) => number;
+    output: (input: number) => number;
+    der: (input: number) => number;
 }
 
 /** Function that computes a penalty cost for a given weight in the network. */
 export interface RegularizationFunction {
-  output: (weight: number) => number;
-  der: (weight: number) => number;
+    output: (weight: number) => number;
+    der: (weight: number) => number;
 }
 
 /** Built-in error functions */
 export class Errors {
-  public static SQUARE: ErrorFunction = {
-    error: (output: number, target: number) =>
-               0.5 * Math.pow(output - target, 2),
-    der: (output: number, target: number) => output - target
-  };
+    public static SQUARE: ErrorFunction = {
+        error: (output: number, target: number) =>
+            0.5 * Math.pow(output - target, 2),
+        der: (output: number, target: number) => output - target
+    };
 }
 
 /** Polyfill for TANH */
 (Math as any).tanh = (Math as any).tanh || function(x) {
-  if (x === Infinity) {
-    return 1;
-  } else if (x === -Infinity) {
-    return -1;
-  } else {
-    let e2x = Math.exp(2 * x);
-    return (e2x - 1) / (e2x + 1);
-  }
+    if (x === Infinity) {
+        return 1;
+    } else if (x === -Infinity) {
+        return -1;
+    } else {
+        let e2x = Math.exp(2 * x);
+        return (e2x - 1) / (e2x + 1);
+    }
 };
 
 /** Built-in activation functions */
 export class Activations {
-  public static TANH: ActivationFunction = {
-    output: x => (Math as any).tanh(x),
-    der: x => {
-      let output = Activations.TANH.output(x);
-      return 1 - output * output;
-    }
-  };
-  public static RELU: ActivationFunction = {
-    output: x => Math.max(0, x),
-    der: x => x <= 0 ? 0 : 1
-  };
-  public static SIGMOID: ActivationFunction = {
-    output: x => 1 / (1 + Math.exp(-x)),
-    der: x => {
-      let output = Activations.SIGMOID.output(x);
-      return output * (1 - output);
-    }
-  };
-  public static LINEAR: ActivationFunction = {
-    output: x => x,
-    der: x => 1
-  };
+    public static TANH: ActivationFunction = {
+        output: x => (Math as any).tanh(x),
+        der: x => {
+            let output = Activations.TANH.output(x);
+            return 1 - output * output;
+        }
+    };
+    public static RELU: ActivationFunction = {
+        output: x => Math.max(0, x),
+        der: x => x <= 0 ? 0 : 1
+    };
+    public static SIGMOID: ActivationFunction = {
+        output: x => 1 / (1 + Math.exp(-x)),
+        der: x => {
+            let output = Activations.SIGMOID.output(x);
+            return output * (1 - output);
+        }
+    };
+    public static LINEAR: ActivationFunction = {
+        output: x => x,
+        der: x => 1
+    };
 }
 
 
 /** Build-in regularization functions */
 export class RegularizationFunction {
-  public static L1: RegularizationFunction = {
-    output: w => Math.abs(w),
-    der: w => w < 0 ? -1 : (w > 0 ? 1 : 0)
-  };
-  public static L2: RegularizationFunction = {
-    output: w => 0.5 * w * w,
-    der: w => w
-  };
+    public static L1: RegularizationFunction = {
+        output: w => Math.abs(w),
+        der: w => w < 0 ? -1 : (w > 0 ? 1 : 0)
+    };
+    public static L2: RegularizationFunction = {
+        output: w => 0.5 * w * w,
+        der: w => w
+    };
 }
 
 /**
@@ -377,37 +407,37 @@ export class RegularizationFunction {
  * a run of back propagation.
  */
 export class Link {
-  id: string;
-  source: Node;
-  dest: Node;
-  weight = Math.random() - 0.5;
-  isDead = false;
-  /** Error derivative with respect to this weight. */
-  errorDer = 0;
-  /** Accumulated error derivative since the last update. */
-  accErrorDer = 0;
-  /** Number of accumulated derivatives since the last update. */
-  numAccumulatedDers = 0;
-  regularization: RegularizationFunction;
+    id: string;
+    source: Node;
+    dest: Node;
+    weight = Math.random() - 0.5;
+    isDead = false;
+    /** Error derivative with respect to this weight. */
+    errorDer = 0;
+    /** Accumulated error derivative since the last update. */
+    accErrorDer = 0;
+    /** Number of accumulated derivatives since the last update. */
+    numAccumulatedDers = 0;
+    regularization: RegularizationFunction;
 
-  /**
-   * Constructs a link in the neural network initialized with random weight.
-   *
-   * @param source The source node.
-   * @param dest The destination node.
-   * @param regularization The regularization function that computes the
-   *     penalty for this weight. If null, there will be no regularization.
-   */
-  constructor(source: Node, dest: Node,
-      regularization: RegularizationFunction, initZero?: boolean) {
-    this.id = source.id + "-" + dest.id;
-    this.source = source;
-    this.dest = dest;
-    this.regularization = regularization;
-    if (initZero) {
-      this.weight = 0;
+    /**
+     * Constructs a link in the neural network initialized with random weight.
+     *
+     * @param source The source node.
+     * @param dest The destination node.
+     * @param regularization The regularization function that computes the
+     *     penalty for this weight. If null, there will be no regularization.
+     */
+    constructor(source: Node, dest: Node,
+                regularization: RegularizationFunction, initZero?: boolean) {
+        this.id = source.id + "-" + dest.id;
+        this.source = source;
+        this.dest = dest;
+        this.regularization = regularization;
+        if (initZero) {
+            this.weight = 0;
+        }
     }
-  }
 }
 
 
@@ -431,55 +461,50 @@ export function buildNetwork(
     outputActivation: ActivationFunction,
     regularization: RegularizationFunction,
     inputIds: string[], initZero?: boolean,
-   ): Node[][] {
-  let numLayers = networkShape.length;
-  let id = 1;
-  /** List of layers, with each layer being a list of nodes. */
-  let network: Node[][] = [];
-  for (let layerIdx = 0; layerIdx < numLayers; layerIdx++) {
-    let isOutputLayer = layerIdx === numLayers - 1;
-    let isInputLayer = layerIdx === 0;
-    let currentLayer: Node[] = [];
-    network.push(currentLayer);
-    let numNodes = networkShape[layerIdx];
-    let normlayer: NormLayer;
-    if (normalization === 1 && !isInputLayer && !isOutputLayer) {
-      normlayer = new BatchNorm(numNodes);
-    }
-    if (normalization === 2 && !isInputLayer && !isOutputLayer) {
-      normlayer = new LayerNorm(numNodes);
-    }
-    for (let i = 0; i < numNodes; i++) {
-      let nodeId = id.toString();
-      if (isInputLayer) {
-        nodeId = inputIds[i];
-      } else {
-        id++;
-      }
-      let node = new Node(nodeId,
-          isOutputLayer ? outputActivation : activation, initZero);
-      currentLayer.push(node);
-      if (layerIdx >= 1) {
-        // Add links from nodes in the previous layer to this node.
-        for (let j = 0; j < network[layerIdx - 1].length; j++) {
-          let prevNode = network[layerIdx - 1][j];
-          let link = new Link(prevNode, node, regularization, initZero);
-          prevNode.outputs.push(link);
-          node.inputLinks.push(link);
-        }
-
+): Node[][] {
+    let numLayers = networkShape.length;
+    let id = 1;
+    /** List of layers, with each layer being a list of nodes. */
+    let network: Node[][] = [];
+    for (let layerIdx = 0; layerIdx < numLayers; layerIdx++) {
+        let isOutputLayer = layerIdx === numLayers - 1;
+        let isInputLayer = layerIdx === 0;
+        let currentLayer: Node[] = [];
+        network.push(currentLayer);
+        let numNodes = networkShape[layerIdx];
+        let normlayer: NormLayer;
         // Add Batch Normalization or Layer Normalization if requested.
-        if (useBatchNormalization && !isInputLayer && !isOutputLayer) {
-          let bn = new BatchNormalization();
-          node.addNormalization(bn);
-        } else if (useLayerNormalization && !isInputLayer && !isOutputLayer) {
-          let ln = new LayerNormalization();
-          node.addNormalization(ln);
+        if (normalization === 1 && !isInputLayer && !isOutputLayer) {
+            normlayer = new BatchNormalization(numNodes);
         }
-      }
+        if (normalization === 2 && !isInputLayer && !isOutputLayer) {
+            normlayer = new LayerNormalization(numNodes);
+        }
+        for (let i = 0; i < numNodes; i++) {
+            let nodeId = id.toString();
+            if (isInputLayer) {
+                nodeId = inputIds[i];
+            } else {
+                id++;
+            }
+            let node = new Node(nodeId,normalization,
+                isOutputLayer ? outputActivation : activation, initZero);
+            if(normalization>0&&~isInputLayer&&~isOutputLayer) node.normlayer=normlayer;
+            currentLayer.push(node);
+            if (layerIdx >= 1) {
+                // Add links from nodes in the previous layer to this node.
+                for (let j = 0; j < network[layerIdx - 1].length; j++) {
+                    let prevNode = network[layerIdx - 1][j];
+                    let link = new Link(prevNode, node, regularization, initZero);
+                    prevNode.outputs.push(link);
+                    node.inputLinks.push(link);
+                }
+
+
+            }
+        }
     }
-  }
-  return network;
+    return network;
 }
 
 
@@ -495,27 +520,27 @@ export function buildNetwork(
  * @return The final output of the network.
  */
 export function forwardProp(network: Node[][], inputs: number[][], batchSize: number): number[] {
-  let inputLayer = network[0];
-  if (inputs[0].length !== inputLayer.length) {
-    throw new Error("The number of inputs must match the number of nodes in" +
-        " the input layer");
-  }
-  // Update the input layer.
-  for (let i = 0; i < inputLayer.length; i++) {
-    let node = inputLayer[i];
-    for(let j = 0; j < batchSize; j++) {
-      node.output[j]=inputs[j][i];  // 第 j 条数据的第 i 个特征
+    let inputLayer = network[0];
+    if (inputs[0].length !== inputLayer.length) {
+        throw new Error("The number of inputs must match the number of nodes in" +
+            " the input layer");
     }
-  }
-  for (let layerIdx = 1; layerIdx < network.length; layerIdx++) {
-    let currentLayer = network[layerIdx];
-    // Update all the nodes in this layer.
-    for (let i = 0; i < currentLayer.length; i++) {
-      let node = currentLayer[i];
-      node.updateOutput(batchSize);
+    // Update the input layer.
+    for (let i = 0; i < inputLayer.length; i++) {
+        let node = inputLayer[i];
+        for(let j = 0; j < batchSize; j++) {
+            node.output[j]=inputs[j][i];  // 第 j 条数据的第 i 个特征
+        }
     }
-  }
-  return network[network.length - 1][0].output;
+    for (let layerIdx = 1; layerIdx < network.length; layerIdx++) {
+        let currentLayer = network[layerIdx];
+        // Update all the nodes in this layer.
+        for (let i = 0; i < currentLayer.length; i++) {
+            let node = currentLayer[i];
+            node.updateOutput(batchSize);
+        }
+    }
+    return network[network.length - 1][0].output;
 }
 
 /**
@@ -526,59 +551,59 @@ export function forwardProp(network: Node[][], inputs: number[][], batchSize: nu
  * in the network.
  */
 export function backProp(network: Node[][], target: number[],
-    errorFunc: ErrorFunction, batchSize: number): void {
-  // The output node is a special case. We use the user-defined error
-  // function for the derivative.
-  let outputNode = network[network.length - 1][0];
-  for(let i=0; i < batchSize; i++) {
-    outputNode.outputDer[i] = errorFunc.der(outputNode.output[i], target[i]);
-  }
-  // Go through the layers backwards.
-  for (let layerIdx = network.length - 1; layerIdx >= 1; layerIdx--) {
-    let currentLayer = network[layerIdx];
-    // Compute the error derivative of each node with respect to:
-    // 1) its total input
-    // 2) each of its input weights.
-    for (let i = 0; i < currentLayer.length; i++) {
-      let node = currentLayer[i];
-      for(let j=0; j<batchSize; j++) {
-        node.inputDer[j] = node.outputDer[j] * node.activation.der(node.totalInput[j]);
-      }
+                         errorFunc: ErrorFunction, batchSize: number): void {
+    // The output node is a special case. We use the user-defined error
+    // function for the derivative.
+    let outputNode = network[network.length - 1][0];
+    for(let i=0; i < batchSize; i++) {
+        outputNode.outputDer[i] = errorFunc.der(outputNode.output[i], target[i]);
     }
-    // Error derivative with respect to each weight coming into the node.
-    for (let i = 0; i < currentLayer.length; i++) {
-      let node = currentLayer[i];
-      for (let j = 0; j < node.inputLinks.length; j++) {
-        let link = node.inputLinks[j];
-        if (link.isDead) {
-          continue;
+    // Go through the layers backwards.
+    for (let layerIdx = network.length - 1; layerIdx >= 1; layerIdx--) {
+        let currentLayer = network[layerIdx];
+        // Compute the error derivative of each node with respect to:
+        // 1) its total input
+        // 2) each of its input weights.
+        for (let i = 0; i < currentLayer.length; i++) {
+            let node = currentLayer[i];
+            for(let j=0; j<batchSize; j++) {
+                node.inputDer[j] = node.outputDer[j] * node.activation.der(node.totalInput[j]);
+            }
         }
-        for(let k=0; k<batchSize; k++) {
-          link.errorDer = node.inputDer[k] * link.source.output[k];
-          link.accErrorDer += link.errorDer;
-          link.numAccumulatedDers++;
+        // Error derivative with respect to each weight coming into the node.
+        for (let i = 0; i < currentLayer.length; i++) {
+            let node = currentLayer[i];
+            for (let j = 0; j < node.inputLinks.length; j++) {
+                let link = node.inputLinks[j];
+                if (link.isDead) {
+                    continue;
+                }
+                for(let k=0; k<batchSize; k++) {
+                    link.errorDer = node.inputDer[k] * link.source.output[k];
+                    link.accErrorDer += link.errorDer;
+                    link.numAccumulatedDers++;
+                }
+            }
         }
-      }
-    }
-    // Compute derivative with respect to prev layer's output
-    if (layerIdx === 1) {
-      continue;
-    }
-    let prevLayer = network[layerIdx - 1];
-    for (let i = 0; i < prevLayer.length; i++) {
-      let node = prevLayer[i];
-      // Compute the error derivative with respect to each node's output.
-      for (let j = 0; j < batchSize; j++) {
-        node.outputDer[j] = 0;
-      }
-      for (let j = 0; j < node.outputs.length; j++) {
-        let output = node.outputs[j];
-        for(let k=0; k < batchSize; k++) {
-          node.outputDer[k] += output.weight * output.dest.inputDer[k];
+        // Compute derivative with respect to prev layer's output
+        if (layerIdx === 1) {
+            continue;
         }
-      }
+        let prevLayer = network[layerIdx - 1];
+        for (let i = 0; i < prevLayer.length; i++) {
+            let node = prevLayer[i];
+            // Compute the error derivative with respect to each node's output.
+            for (let j = 0; j < batchSize; j++) {
+                node.outputDer[j] = 0;
+            }
+            for (let j = 0; j < node.outputs.length; j++) {
+                let output = node.outputs[j];
+                for(let k=0; k < batchSize; k++) {
+                    node.outputDer[k] += output.weight * output.dest.inputDer[k];
+                }
+            }
+        }
     }
-  }
 }
 
 /**
@@ -595,124 +620,124 @@ export function backProp(network: Node[][], target: number[],
  */
 export function updateWeightsAdam(network: Node[][], learningRate: number,
                                   beta1: number=0.99, beta2: number=0.999, epsilon: number=10e-8) {
-  let m: number[][][] = [];  // 一阶动量
-  let v: number[][][] = [];  // 二阶动量
-  let t = 0;  // 时间步长
-  for (let layerIdx = 1; layerIdx < network.length; layerIdx++) {
-    let currentLayer = network[layerIdx];
-    m[layerIdx] = new Array(currentLayer.length);
-    v[layerIdx] = new Array(currentLayer.length);
-    for (let i = 0; i < currentLayer.length; i++) {
-      let node = currentLayer[i];
-      // 初始化一阶动量和二阶动量
-      m[layerIdx][i] = new Array(node.inputLinks.length + 1);
-      v[layerIdx][i] = new Array(node.inputLinks.length + 1);
-      // 更新节点的偏置
-      let numAccumulatedDers = node.inputDer.length
-      let accInputDer = 0
-      for(let j=0; j<node.inputDer.length; j++) {
-        accInputDer += node.inputDer[j];
-      }
-      if (numAccumulatedDers > 0) {
-        node.bias -= learningRate * accInputDer / numAccumulatedDers;
-        for(let j=0; j<node.inputDer.length; j++) {
-          node.inputDer[i] = 0;
+    let m: number[][][] = [];  // 一阶动量
+    let v: number[][][] = [];  // 二阶动量
+    let t = 0;  // 时间步长
+    for (let layerIdx = 1; layerIdx < network.length; layerIdx++) {
+        let currentLayer = network[layerIdx];
+        m[layerIdx] = new Array(currentLayer.length);
+        v[layerIdx] = new Array(currentLayer.length);
+        for (let i = 0; i < currentLayer.length; i++) {
+            let node = currentLayer[i];
+            // 初始化一阶动量和二阶动量
+            m[layerIdx][i] = new Array(node.inputLinks.length + 1);
+            v[layerIdx][i] = new Array(node.inputLinks.length + 1);
+            // 更新节点的偏置
+            let numAccumulatedDers = node.inputDer.length
+            let accInputDer = 0
+            for(let j=0; j<node.inputDer.length; j++) {
+                accInputDer += node.inputDer[j];
+            }
+            if (numAccumulatedDers > 0) {
+                node.bias -= learningRate * accInputDer / numAccumulatedDers;
+                for(let j=0; j<node.inputDer.length; j++) {
+                    node.inputDer[i] = 0;
+                }
+            }
+            // 更新输入到该节点的权重
+            for (let j = 0; j < node.inputLinks.length; j++) {
+                let link = node.inputLinks[j];
+                if (link.isDead) {
+                    continue;
+                }
+                if (m[layerIdx][i][j] === undefined) {
+                    m[layerIdx][i][j] = 0;
+                }
+                if (v[layerIdx][i][j] === undefined) {
+                    v[layerIdx][i][j] = 0;
+                }
+                if (link.numAccumulatedDers > 0) {
+                    // 更新一阶动量和二阶动量
+                    m[layerIdx][i][j] = beta1 * m[layerIdx][i][j] + (1 - beta1) * link.accErrorDer / link.numAccumulatedDers;
+                    v[layerIdx][i][j] = beta2 * v[layerIdx][i][j] + (1 - beta2) * Math.pow(link.accErrorDer / link.numAccumulatedDers, 2);
+                    t += 1;
+                    // 计算修正后的一阶动量和二阶动量
+                    let mHat = m[layerIdx][i][j] / (1 - Math.pow(beta1, t));
+                    let vHat = v[layerIdx][i][j] / (1 - Math.pow(beta2, t));
+                    // 更新权重
+                    link.weight -= (learningRate / (Math.sqrt(vHat) + epsilon)) * mHat;
+                    // 重置累计梯度
+                    link.accErrorDer = 0;
+                    link.numAccumulatedDers = 0;
+                }
+            }
         }
-      }
-      // 更新输入到该节点的权重
-      for (let j = 0; j < node.inputLinks.length; j++) {
-        let link = node.inputLinks[j];
-        if (link.isDead) {
-          continue;
-        }
-        if (m[layerIdx][i][j] === undefined) {
-          m[layerIdx][i][j] = 0;
-        }
-        if (v[layerIdx][i][j] === undefined) {
-          v[layerIdx][i][j] = 0;
-        }
-        if (link.numAccumulatedDers > 0) {
-          // 更新一阶动量和二阶动量
-          m[layerIdx][i][j] = beta1 * m[layerIdx][i][j] + (1 - beta1) * link.accErrorDer / link.numAccumulatedDers;
-          v[layerIdx][i][j] = beta2 * v[layerIdx][i][j] + (1 - beta2) * Math.pow(link.accErrorDer / link.numAccumulatedDers, 2);
-          t += 1;
-          // 计算修正后的一阶动量和二阶动量
-          let mHat = m[layerIdx][i][j] / (1 - Math.pow(beta1, t));
-          let vHat = v[layerIdx][i][j] / (1 - Math.pow(beta2, t));
-          // 更新权重
-          link.weight -= (learningRate / (Math.sqrt(vHat) + epsilon)) * mHat;
-          // 重置累计梯度
-          link.accErrorDer = 0;
-          link.numAccumulatedDers = 0;
-        }
-      }
     }
-  }
 }
 export function updateWeightsSGD(network: Node[][], learningRate: number,
                                  regularizationRate: number) {
-  for (let layerIdx = 1; layerIdx < network.length; layerIdx++) {
-    let currentLayer = network[layerIdx];
-    for (let i = 0; i < currentLayer.length; i++) {
-      let node = currentLayer[i];
-      // Update the node's bias.
-      let numAccumulatedDers = node.inputDer.length
-      let accInputDer = 0
-      for(let j=0; j<node.inputDer.length; j++) {
-        accInputDer += node.inputDer[j];
-      }
-      if (numAccumulatedDers > 0) {
-        node.bias -= learningRate * accInputDer / numAccumulatedDers;
-        for(let j=0; j<node.inputDer.length; j++) {
-          node.inputDer[i] = 0;
+    for (let layerIdx = 1; layerIdx < network.length; layerIdx++) {
+        let currentLayer = network[layerIdx];
+        for (let i = 0; i < currentLayer.length; i++) {
+            let node = currentLayer[i];
+            // Update the node's bias.
+            let numAccumulatedDers = node.inputDer.length
+            let accInputDer = 0
+            for(let j=0; j<node.inputDer.length; j++) {
+                accInputDer += node.inputDer[j];
+            }
+            if (numAccumulatedDers > 0) {
+                node.bias -= learningRate * accInputDer / numAccumulatedDers;
+                for(let j=0; j<node.inputDer.length; j++) {
+                    node.inputDer[i] = 0;
+                }
+            }
+            // Update the weights coming into this node.
+            for (let j = 0; j < node.inputLinks.length; j++) {
+                let link = node.inputLinks[j];
+                if (link.isDead) {
+                    continue;
+                }
+                let regulDer = link.regularization ?
+                    link.regularization.der(link.weight) : 0;
+                if (link.numAccumulatedDers > 0) {
+                    // Update the weight based on dE/dw.
+                    link.weight -= (learningRate / link.numAccumulatedDers) * link.accErrorDer;
+                    // Further update the weight based on regularization.
+                    let newLinkWeight = link.weight -
+                        (learningRate * regularizationRate) * regulDer;
+                    if (link.regularization === RegularizationFunction.L1 &&
+                        link.weight * newLinkWeight < 0) {
+                        // The weight crossed 0 due to the regularization term. Set it to 0.
+                        link.weight = 0;
+                        link.isDead = true;
+                    } else {
+                        link.weight = newLinkWeight;
+                    }
+                    link.accErrorDer = 0;
+                    link.numAccumulatedDers = 0;
+                }
+            }
         }
-      }
-      // Update the weights coming into this node.
-      for (let j = 0; j < node.inputLinks.length; j++) {
-        let link = node.inputLinks[j];
-        if (link.isDead) {
-          continue;
-        }
-        let regulDer = link.regularization ?
-            link.regularization.der(link.weight) : 0;
-        if (link.numAccumulatedDers > 0) {
-          // Update the weight based on dE/dw.
-          link.weight -= (learningRate / link.numAccumulatedDers) * link.accErrorDer;
-          // Further update the weight based on regularization.
-          let newLinkWeight = link.weight -
-              (learningRate * regularizationRate) * regulDer;
-          if (link.regularization === RegularizationFunction.L1 &&
-              link.weight * newLinkWeight < 0) {
-            // The weight crossed 0 due to the regularization term. Set it to 0.
-            link.weight = 0;
-            link.isDead = true;
-          } else {
-            link.weight = newLinkWeight;
-          }
-          link.accErrorDer = 0;
-          link.numAccumulatedDers = 0;
-        }
-      }
     }
-  }
 }
 
 /** Iterates over every node in the network */
 export function forEachNode(network: Node[][], ignoreInputs: boolean,
-    accessor: (node: Node) => any) {
-  for (let layerIdx = ignoreInputs ? 1 : 0;
-      layerIdx < network.length;
-      layerIdx++) {
-    let currentLayer = network[layerIdx]; // 同样是个数组
-    for (let i = 0; i < currentLayer.length; i++) {
-      let node = currentLayer[i];
-      accessor(node);
+                            accessor: (node: Node) => any) {
+    for (let layerIdx = ignoreInputs ? 1 : 0;
+         layerIdx < network.length;
+         layerIdx++) {
+        let currentLayer = network[layerIdx]; // 同样是个数组
+        for (let i = 0; i < currentLayer.length; i++) {
+            let node = currentLayer[i];
+            accessor(node);
+        }
     }
-  }
 }
 
 /** Returns the output node in the network. */
 // 貌似不论是回归还是分类，最终都只有一个输出节点
 export function getOutputNode(network: Node[][]) {
-  return network[network.length - 1][0];
+    return network[network.length - 1][0];
 }

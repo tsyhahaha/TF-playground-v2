@@ -390,6 +390,20 @@ header h1 .optional {
   top: -20px;
 }
 
+#easyHover{
+  display: none;
+  position: absolute;
+  padding: 5px;
+  border: 1px solid #aaa;
+  z-index: 1000;
+  background: #fff;
+  cursor: default;
+  border-radius: 5px;
+  left: 240px;
+  width: 100px;
+  top: -20px;
+}
+
 #hovercard input {
   width: 60px;
 }
