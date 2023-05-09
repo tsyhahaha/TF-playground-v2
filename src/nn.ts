@@ -100,10 +100,11 @@ type NormLayer = {
   v_t_delta: number[];
 
   forward(X: number[][], type: string): number[][];
-  backforward(dOutput: number[][]): number[][];
+  backward(dOutput: number[][]): number[][];
 };
 
 export class BatchNormalization implements NormLayer {
+    dispersion: number[];
   avgMoving: number[];
   varMoving: number[];
   batchAvg: number[];
@@ -299,6 +300,12 @@ export class LayerNormalization implements NormLayer {
       }
     }
     return this.dInput;
+  }
+
+  dispersion: number[];
+
+  backforward(dOutput: number[][]): number[][] {
+    return [];
   }
 }
 
