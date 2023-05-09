@@ -273,7 +273,6 @@ export class LayerNormalization implements NormLayer {
     this.varData = Copy(varData);
     return this.outputData;
   }
-
   backward(dOutput: number[][]): number[][] {
     let D = dOutput.length;
     let N = dOutput[0].length;
@@ -457,11 +456,12 @@ export function buildNetwork(
     network.push(currentLayer);
     let numNodes = networkShape[layerIdx];
     let normlayer: NormLayer;
+    // Add Batch Normalization or Layer Normalization if requested.
     if (normalization === 1 && !isInputLayer && !isOutputLayer) {
-      normlayer = new BatchNorm(numNodes);
+      normlayer = new BatchNormalization(numNodes);
     }
     if (normalization === 2 && !isInputLayer && !isOutputLayer) {
-      normlayer = new LayerNorm(numNodes);
+      normlayer = new LayerNormalization(numNodes);
     }
     for (let i = 0; i < numNodes; i++) {
       let nodeId = id.toString();
@@ -472,6 +472,7 @@ export function buildNetwork(
       }
       let node = new Node(nodeId,normalization,
           isOutputLayer ? outputActivation : activation, initZero);
+      if(normalization>0&&~isInputLayer&&~isOutputLayer) node.normlayer=normlayer;
       currentLayer.push(node);
       if (layerIdx >= 1) {
         // Add links from nodes in the previous layer to this node.
@@ -482,14 +483,7 @@ export function buildNetwork(
           node.inputLinks.push(link);
         }
 
-        // Add Batch Normalization or Layer Normalization if requested.
-        if (useBatchNormalization && !isInputLayer && !isOutputLayer) {
-          let bn = new BatchNormalization(numNodes)
-          node.addNormalization(bn);
-        } else if (useLayerNormalization && !isInputLayer && !isOutputLayer) {
-          let ln = new LayerNormalization(numNodes);
-          node.addNormalization(ln);
-        }
+
       }
     }
   }
