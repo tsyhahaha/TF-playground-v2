@@ -60,12 +60,14 @@ export class Node {
         // sum the link: weight * source
         for (let j = 0; j < this.inputLinks.length; j++) {
             let link = this.inputLinks[j];
+            if(isNaN(link.weight)) {
+                console.log(link);
+            }
             for (let i = 0; i < batchSize; i++) {
                 this.totalInput[i] += link.weight * link.source.output[i];
             }
         }
         this.averageOutput = 0
-        // console.log("totalInput+weight: "+this.totalInput)
         for (let i = 0; i < batchSize; i++) {
             this.output[i] = this.activation.output(this.totalInput[i]);
             this.averageOutput += this.output[i]
@@ -76,7 +78,7 @@ export class Node {
     }
 }
 
-class NodeLayerMethod {
+class LayerMethod {
     public static layerInput(layer: Node[], batchSize: number) {
         /** to update node's total input at layer level */
         for (let i = 0; i < layer.length; i++) {
@@ -87,8 +89,14 @@ class NodeLayerMethod {
             // sum the link: weight * source
             for (let j = 0; j < node.inputLinks.length; j++) {
                 let link = node.inputLinks[j];
-                for (let i = 0; i < batchSize; i++) {
-                    node.totalInput[i] += link.weight * link.source.output[i];
+                if(isNaN(link.weight)) {
+                    console.log(node.id + link)
+                }
+                for (let k = 0; k < batchSize; k++) {
+                    if(isNaN(node.totalInput[k])) {
+                        console.log("totalInput is nan: "+node.id)
+                    }
+                    node.totalInput[k] += link.weight * link.source.output[k];
                 }
             }
             // console.log("batchSize = "+batchSize+", totalInput: "+node.totalInput)
@@ -100,15 +108,61 @@ class NodeLayerMethod {
         for (let i = 0; i < layer.length; i++) {
             let node = layer[i]
             node.averageOutput = 0
-            // console.log("totalInput+weight: "+this.totalInput)
-            for (let i = 0; i < batchSize; i++) {
-                node.output[i] = node.activation.output(node.totalInput[i]);
-                node.averageOutput += node.output[i]
+            for (let j = 0; j < batchSize; j++) {
+                node.output[j] = node.activation.output(node.totalInput[j]);
+                if(isNaN(node.output[j])) {
+                    console.log("node output is nan: "+node.id);
+                }
+                node.averageOutput += node.output[j]
             }
             node.averageOutput /= node.output.length
             node.averageOutputNotNorm = node.averageOutput;
         }
     };
+
+    public static layerDInput(layer: Node[], batchSize: number) {
+        for (let i = 0; i < layer.length; i++) {
+            let node = layer[i];
+            for (let j = 0; j < batchSize; j++) {
+                node.inputDer[j] = node.outputDer[j] * node.activation.der(node.totalInput[j]);
+            }
+        }
+    }
+
+    public static layerDLink(layer: Node[], batchSize: number) {
+        // Error derivative with respect to each weight coming into the node.
+        for (let i = 0; i < layer.length; i++) {
+            let node = layer[i];
+            for (let j = 0; j < node.inputLinks.length; j++) {
+                let link = node.inputLinks[j];
+                if (link.isDead) {
+                    continue;
+                }
+                for (let k = 0; k < batchSize; k++) {
+                    link.errorDer = node.inputDer[k] * link.source.output[k];
+                    link.accErrorDer += link.errorDer;
+                    link.numAccumulatedDers++;
+                }
+            }
+        }
+    }
+
+    public static layerDOutput(prevLayer: Node[], batchSize: number) {
+        for (let i = 0; i < prevLayer.length; i++) {
+            let node = prevLayer[i];
+            // Compute the error derivative with respect to each node's output.
+            for (let j = 0; j < batchSize; j++) {
+                node.outputDer[j] = 0;
+            }
+            for (let j = 0; j < node.outputs.length; j++) {
+                let output = node.outputs[j];
+                for (let k = 0; k < batchSize; k++) {
+                    node.outputDer[k] += output.weight * output.dest.inputDer[k];
+                }
+            }
+        }
+    }
+
 
     public static constructNormInput(layer: Node[], type: number): number[][] {
         /**
@@ -124,6 +178,10 @@ class NodeLayerMethod {
             } else if (type == 1) {
                 // console.log("node.output: "+node.output)
                 input[i] = Copy1D(node.output);
+            } else if(type == 2) {
+                input[i] = Copy1D(node.inputDer);
+            } else if(type == 3) {
+                input[i] = Copy1D(node.outputDer);
             }
         }
         return input;
@@ -136,6 +194,10 @@ class NodeLayerMethod {
                 node.totalInput = Copy1D(normOutput[i]);
             } else if (type == 1) {
                 node.output = Copy1D(normOutput[i]);
+            } else if(type == 2) {
+                node.inputDer = Copy1D(normOutput[i]);
+            } else if(type == 3) {
+                node.outputDer = Copy1D(normOutput[i]);
             }
         }
     }
@@ -282,6 +344,9 @@ export class BatchNormalization implements NormLayer {
         let L = dOutput.length;
         let N = dOutput[0].length;
         this.dInput = Copy(dOutput);
+        if (N == 1) {
+            return this.dInput;
+        }
         this.dAlpha = new Array(N);
         this.dDelta = new Array(N);
         for (let i = 0; i < L; i++) {
@@ -347,6 +412,9 @@ export class LayerNormalization implements NormLayer {
         this.outputData = Copy(X);
         let D = X.length;
         let N = X[0].length;
+        if(N == 1) {
+            return this.outputData;
+        }
         let avg = new Array(N);
         let varData = new Array(N);
         let Xnorm = Copy(X);
@@ -376,6 +444,9 @@ export class LayerNormalization implements NormLayer {
         let D = dOutput.length;
         let N = dOutput[0].length;
         this.dInput = Copy(dOutput);
+        if(N == 1) {
+            return this.dInput;
+        }
         this.dAlpha = new Array(D);
         this.dDelta = new Array(D);
         for (let j = 0; j < D; j++) {
@@ -624,8 +695,8 @@ export function forwardProp(network: Node[][], inputs: number[][], batchSize: nu
          * */
         let currentLayer = network[layerIdx];
         // Update all the nodes in this layer.
-        NodeLayerMethod.layerInput(currentLayer, batchSize);
-        NodeLayerMethod.layerActivate(currentLayer, batchSize);
+        LayerMethod.layerInput(currentLayer, batchSize);
+        LayerMethod.layerActivate(currentLayer, batchSize);
     }
     if (normLayerList != null) {
         for (let layerIdx = 1; layerIdx < network.length - 1; layerIdx++) {
@@ -633,15 +704,24 @@ export function forwardProp(network: Node[][], inputs: number[][], batchSize: nu
             if (layerIdx in normLayerList) {
                 let place = normLayerList[layerIdx]['place'];
                 let normLayer = normLayerList[layerIdx]['layer'];
+<<<<<<< Updated upstream
                 let input = NodeLayerMethod.constructNormInput(currentLayer, place);
                  //console.log(input)
                 let normResult = normLayer.forward(input);
                 //console.log(normResult)
                 NodeLayerMethod.setNormOutput(currentLayer, normResult, place);
                 NodeLayerMethod.layerActivate(currentLayer, batchSize);
+=======
+                let input = LayerMethod.constructNormInput(currentLayer, place);
+                // console.log(input)   // checkpoint
+                let normResult = normLayer.forward(input);
+                // console.log(normResult)
+                LayerMethod.setNormOutput(currentLayer, normResult, place);
+                LayerMethod.layerActivate(currentLayer, batchSize);
+>>>>>>> Stashed changes
             } else {
-                NodeLayerMethod.layerInput(currentLayer, batchSize);
-                NodeLayerMethod.layerActivate(currentLayer, batchSize);
+                LayerMethod.layerInput(currentLayer, batchSize);
+                LayerMethod.layerActivate(currentLayer, batchSize);
             }
         }
         /** 最后一层的 output node 只需更新输出 */
@@ -674,45 +754,26 @@ export function backProp(network: Node[][], target: number[],
         // Compute the error derivative of each node with respect to:
         // 1) its total input
         // 2) each of its input weights.
-        for (let i = 0; i < currentLayer.length; i++) {
-            let node = currentLayer[i];
-            for (let j = 0; j < batchSize; j++) {
-                node.inputDer[j] = node.outputDer[j] * node.activation.der(node.totalInput[j]);
-            }
-        }
+        LayerMethod.layerDInput(currentLayer, batchSize);
         // Error derivative with respect to each weight coming into the node.
-        for (let i = 0; i < currentLayer.length; i++) {
-            let node = currentLayer[i];
-            for (let j = 0; j < node.inputLinks.length; j++) {
-                let link = node.inputLinks[j];
-                if (link.isDead) {
-                    continue;
-                }
-                for (let k = 0; k < batchSize; k++) {
-                    link.errorDer = node.inputDer[k] * link.source.output[k];
-                    link.accErrorDer += link.errorDer;
-                    link.numAccumulatedDers++;
-                }
-            }
-        }
+        // if(normLayerList != null && layerIdx in normLayerList) {
+        //     let place = normLayerList[layerIdx]['place'];
+        //     let normLayer = normLayerList[layerIdx]['layer'];
+        //     let input = LayerMethod.constructNormInput(currentLayer, place+2);
+        //     // console.log(input)   // checkpoint
+        //     let normResult = normLayer.backward(input);
+        //     LayerMethod.setNormOutput(currentLayer, normResult, place+2);
+        //     if(place == 1) {
+        //         LayerMethod.layerDInput(currentLayer, batchSize);
+        //     }
+        // }
+        LayerMethod.layerDLink(currentLayer, batchSize);
         // Compute derivative with respect to prev layer's output
         if (layerIdx === 1) {
             continue;
         }
         let prevLayer = network[layerIdx - 1];
-        for (let i = 0; i < prevLayer.length; i++) {
-            let node = prevLayer[i];
-            // Compute the error derivative with respect to each node's output.
-            for (let j = 0; j < batchSize; j++) {
-                node.outputDer[j] = 0;
-            }
-            for (let j = 0; j < node.outputs.length; j++) {
-                let output = node.outputs[j];
-                for (let k = 0; k < batchSize; k++) {
-                    node.outputDer[k] += output.weight * output.dest.inputDer[k];
-                }
-            }
-        }
+        LayerMethod.layerDOutput(prevLayer, batchSize);
     }
 }
 
@@ -813,6 +874,9 @@ export function updateWeightsSGD(network: Node[][], learningRate: number,
                     link.regularization.der(link.weight) : 0;
                 if (link.numAccumulatedDers > 0) {
                     // Update the weight based on dE/dw.
+                    if(link.numAccumulatedDers == 0) {
+                        console.error("link numAccumulatedDers == 0");
+                    }
                     link.weight -= (learningRate / link.numAccumulatedDers) * link.accErrorDer;
                     // Further update the weight based on regularization.
                     let newLinkWeight = link.weight -
