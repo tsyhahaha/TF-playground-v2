@@ -704,21 +704,12 @@ export function forwardProp(network: Node[][], inputs: number[][], batchSize: nu
             if (layerIdx in normLayerList) {
                 let place = normLayerList[layerIdx]['place'];
                 let normLayer = normLayerList[layerIdx]['layer'];
-<<<<<<< Updated upstream
-                let input = NodeLayerMethod.constructNormInput(currentLayer, place);
-                 //console.log(input)
-                let normResult = normLayer.forward(input);
-                //console.log(normResult)
-                NodeLayerMethod.setNormOutput(currentLayer, normResult, place);
-                NodeLayerMethod.layerActivate(currentLayer, batchSize);
-=======
                 let input = LayerMethod.constructNormInput(currentLayer, place);
                 // console.log(input)   // checkpoint
                 let normResult = normLayer.forward(input);
                 // console.log(normResult)
                 LayerMethod.setNormOutput(currentLayer, normResult, place);
                 LayerMethod.layerActivate(currentLayer, batchSize);
->>>>>>> Stashed changes
             } else {
                 LayerMethod.layerInput(currentLayer, batchSize);
                 LayerMethod.layerActivate(currentLayer, batchSize);
