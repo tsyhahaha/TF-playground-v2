@@ -292,7 +292,7 @@ export class BatchNormalization implements NormLayer {
         }
     }
 
-    forward(X: number[][],mode:string): number[][] {
+    forward(X: number[][]): number[][] {
         // console.log('here!');
         this.inputData = Copy(X);
         this.outputData = Copy(X);
@@ -305,7 +305,7 @@ export class BatchNormalization implements NormLayer {
         let average = new Array(L);
         let dispersion = new Array(L);
         //如果不是训练模式,固定的在训练中得出的mean和var计算：
-        if (mode === 'eval') {
+        /*if (mode === 'eval') {
             for (let i = 0; i < L; i++) {
                 for (let j = 0; j < N; j++) {
                     Xnorm[i][j] = (X[i][j] - this.avgMoving[i]) / Math.sqrt(this.varMoving[i] + this.eps);
@@ -314,7 +314,7 @@ export class BatchNormalization implements NormLayer {
             }
             this.Xnorm = Copy(Xnorm);
             return this.outputData;
-        }
+        }*/
 
         for (let i = 0; i < L; i++) {
             average[i] = 0;
