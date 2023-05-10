@@ -28,6 +28,7 @@ import {
 import {Example2D, shuffle} from "./dataset";
 import {AppendingLineChart} from "./linechart";
 import * as d3 from 'd3';
+import {BatchNormalization, LayerNormalization} from "./nn";
 
 let mainWidth;
 // 设置滑动按钮（下方文本区域）
@@ -178,6 +179,7 @@ let iter = 0;
 let trainData: Example2D[] = [];
 let testData: Example2D[] = [];
 let network: nn.Node[][] = null;
+let normLayerList = null
 let lossTrain = 0;
 let lossTest = 0;
 let player = new Player();
@@ -929,9 +931,9 @@ function updateDecisionBoundary(network: nn.Node[][], firstTime: boolean) {
             let x = xScale(i);
             let y = yScale(j);
             let input = constructInput(x, y);
-            nn.forwardProp(network, [input], 1);
+            nn.forwardProp(network, [input], 1, normLayerList);
             nn.forEachNode(network, true, node => {
-                boundary[node.id]['non_norm'][i][j] = node.averageOutput;
+                boundary[node.id]['non_norm'][i][j] = node.averageOutputNotNorm;
                 boundary[node.id]['norm'][i][j] = node.averageOutput;   // norm 结果保存处
                 // console.log(node.id+" ["+i+"]["+j+"] "+node.averageOutput)
             });
@@ -950,7 +952,7 @@ function getLoss(network: nn.Node[][], dataPoints: Example2D[]): number {
     for (let i = 0; i < dataPoints.length; i++) {
         let dataPoint = dataPoints[i];
         let input = constructInput(dataPoint.x, dataPoint.y);
-        let output = nn.forwardProp(network, [input], 1);
+        let output = nn.forwardProp(network, [input], 1, normLayerList);
         loss += nn.Errors.SQUARE.error(output[0], dataPoint.label);
     }
     return loss / dataPoints.length;
@@ -1042,7 +1044,7 @@ function oneStep(): void {
         labelList.push(point.label);
         state.nowSize += 1;
         if (state.nowSize % state.batchSize === 0) {
-            nn.forwardProp(network, inputMatrix, state.nowSize);
+            nn.forwardProp(network, inputMatrix, state.nowSize, normLayerList);
             nn.backProp(network, labelList, nn.Errors.SQUARE, state.nowSize);
             if (state.optimizer === 0) {
                 nn.updateWeightsSGD(network,
@@ -1110,8 +1112,23 @@ function reset(onStartup = false) {
     let shape = [numInputs].concat(state.networkShape).concat([1]);
     let outputActivation = (state.problem === Problem.REGRESSION) ?
         nn.Activations.LINEAR : nn.Activations.TANH;
-    network = nn.buildNetwork(shape, 0, state.activation, outputActivation,
+    network = nn.buildNetwork(shape, state.normalization, state.activation, outputActivation,
         state.regularization, constructInputIds(), state.initZero);
+    if(state.normalization == 0) {
+        normLayerList = null
+    } else {
+        normLayerList = {}
+        for (let i = 1; i < network.length-1; i++) {
+            if(state.normalization == 1) {
+                normLayerList[i].layer = new BatchNormalization(shape[i]);
+                normLayerList[i].place = 0;  // 暂时都设置为0
+            } else if(state.normalization == 2) {
+                normLayerList[i].layer = new LayerNormalization(shape[i])
+                normLayerList[i].place = 0;
+            }
+        }
+    }
+
     lossTrain = getLoss(network, trainData);
     lossTest = getLoss(network, testData);
     drawNetwork(network);
