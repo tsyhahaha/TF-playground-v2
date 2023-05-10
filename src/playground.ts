@@ -1118,13 +1118,14 @@ function reset(onStartup = false) {
         normLayerList = null
     } else {
         normLayerList = {}
-        for (let i = 1; i < network.length-1; i++) {
+        for (let i = 1; i < network.length-1; i++) {        // 暂时每一层都加一个
+            normLayerList[i] = {}
             if(state.normalization == 1) {
-                normLayerList[i].layer = new BatchNormalization(shape[i]);
-                normLayerList[i].place = 0;  // 暂时都设置为0
+                normLayerList[i]['layer'] = new BatchNormalization(shape[i]);
+                normLayerList[i]['place'] = 0;  // 暂时都设置为0
             } else if(state.normalization == 2) {
-                normLayerList[i].layer = new LayerNormalization(shape[i])
-                normLayerList[i].place = 0;
+                normLayerList[i]['layer'] = new LayerNormalization(shape[i])
+                normLayerList[i]['place'] = 0;
             }
         }
     }

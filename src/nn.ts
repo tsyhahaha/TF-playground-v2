@@ -91,6 +91,7 @@ class NodeLayerMethod {
                     node.totalInput[i] += link.weight * link.source.output[i];
                 }
             }
+            // console.log("batchSize = "+batchSize+", totalInput: "+node.totalInput)
         }
     };
 
@@ -115,18 +116,15 @@ class NodeLayerMethod {
          * type = 1: 获取activation后的结果
          * */
         let input = []  // 构造的input，其每列为单条数据
-        let batchSize = layer[0].totalInput.length
-        for (let i = 0; i < batchSize; i++) {
-            input[i] = []
-        }
         for (let i = 0; i < layer.length; i++) {
             let node = layer[i];
             if (type == 0) {
+                // console.log("node.totalInput: "+node.totalInput)
                 input[i] = Copy1D(node.totalInput);
             } else if (type == 1) {
+                // console.log("node.output: "+node.output)
                 input[i] = Copy1D(node.output);
             }
-
         }
         return input;
     }
@@ -233,11 +231,15 @@ export class BatchNormalization implements NormLayer {
     }
 
     forward(X: number[][]): number[][] {
+        // console.log('here!');
         this.inputData = Copy(X);
         this.outputData = Copy(X);
         let Xnorm = Copy(X);
         let L = X.length;
         let N = X[0].length;
+        if (N == 1) {
+            return this.inputData;
+        }
         let average = new Array(L);
         let dispersion = new Array(L);
         for (let i = 0; i < L; i++) {
@@ -335,6 +337,9 @@ export class LayerNormalization implements NormLayer {
         this.outputData = Copy(X_T);
         let D = X_T.length;
         let N = X_T[0].length;
+        if (N == 1) {
+            return this.inputData;
+        }
         let avg = new Array(N);
         let varData = new Array(N);
         let Xnorm = Copy(X_T);
@@ -592,7 +597,7 @@ export function buildNetwork(
  * @return The final output of the network.
  */
 export function forwardProp(network: Node[][], inputs: number[][], batchSize: number,
-                            normLayerList: { [layerNum: number]: { layer: NormLayer, place: number } }): number[] {
+                            normLayerList: { [layerNum: number]: { layer: NormLayer, place: number }}): number[] {
     let inputLayer = network[0];
     if (inputs[0].length !== inputLayer.length) {
         throw new Error("The number of inputs must match the number of nodes in" +
@@ -618,11 +623,13 @@ export function forwardProp(network: Node[][], inputs: number[][], batchSize: nu
     if (normLayerList != null) {
         for (let layerIdx = 1; layerIdx < network.length - 1; layerIdx++) {
             let currentLayer = network[layerIdx];
-            if(layerIdx in normLayerList) {
-                let place = normLayerList[layerIdx].place;
-                let normLayer = normLayerList[layerIdx].layer;
+            if (layerIdx in normLayerList) {
+                let place = normLayerList[layerIdx]['place'];
+                let normLayer = normLayerList[layerIdx]['layer'];
                 let input = NodeLayerMethod.constructNormInput(currentLayer, place);
+                // console.log(input)
                 let normResult = normLayer.forward(input);
+                // console.log(normResult)
                 NodeLayerMethod.setNormOutput(currentLayer, normResult, place);
                 NodeLayerMethod.layerActivate(currentLayer, batchSize);
             } else {
@@ -646,7 +653,8 @@ export function forwardProp(network: Node[][], inputs: number[][], batchSize: nu
  * in the network.
  */
 export function backProp(network: Node[][], target: number[],
-                         errorFunc: ErrorFunction, batchSize: number): void {
+                         errorFunc: ErrorFunction, batchSize: number,
+                         normLayerList: { [layerNum: number]: { layer: NormLayer, place: number } }): void {
     // The output node is a special case. We use the user-defined error
     // function for the derivative.
     let outputNode = network[network.length - 1][0];
@@ -845,7 +853,9 @@ export const T = (ary: any[]) => {
         for (let j = 0; j < ary.length; j++) {
             cd.push(ary[j][i])
         }
-        ar.push(cd)
+        if (cd.length != 0) {
+            ar.push(cd);
+        }
     }
     return ar
 }
