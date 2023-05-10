@@ -592,7 +592,7 @@ export function buildNetwork(
  * @return The final output of the network.
  */
 export function forwardProp(network: Node[][], inputs: number[][], batchSize: number,
-                            normLayerList: { [layerNum: number]: { normLayer: NormLayer, place: number } }): number[] {
+                            normLayerList: { [layerNum: number]: { layer: NormLayer, place: number } }): number[] {
     let inputLayer = network[0];
     if (inputs[0].length !== inputLayer.length) {
         throw new Error("The number of inputs must match the number of nodes in" +
@@ -620,7 +620,7 @@ export function forwardProp(network: Node[][], inputs: number[][], batchSize: nu
             let currentLayer = network[layerIdx];
             if(layerIdx in normLayerList) {
                 let place = normLayerList[layerIdx].place;
-                let normLayer = normLayerList[layerIdx].normLayer;
+                let normLayer = normLayerList[layerIdx].layer;
                 let input = NodeLayerMethod.constructNormInput(currentLayer, place);
                 let normResult = normLayer.forward(input);
                 NodeLayerMethod.setNormOutput(currentLayer, normResult, place);
