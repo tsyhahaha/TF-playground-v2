@@ -230,7 +230,7 @@ export class BatchNormalization implements NormLayer {
         }
     }
 
-    forward(X: number[][]): number[][] {
+    forward(X: number[][],mode:string): number[][] {
         // console.log('here!');
         this.inputData = Copy(X);
         this.outputData = Copy(X);
@@ -242,6 +242,18 @@ export class BatchNormalization implements NormLayer {
         }
         let average = new Array(L);
         let dispersion = new Array(L);
+        //如果不是训练模式,固定的在训练中得出的mean和var计算：
+        if (mode === 'eval') {
+            for (let i = 0; i < L; i++) {
+                for (let j = 0; j < N; j++) {
+                    Xnorm[i][j] = (X[i][j] - this.avgMoving[i]) / Math.sqrt(this.varMoving[i] + this.eps);
+                    this.outputData[i][j] = this.alpha[i] * Xnorm[i][j] + this.delta[i];
+                }
+            }
+            this.Xnorm = Copy(Xnorm);
+            return this.outputData;
+        }
+
         for (let i = 0; i < L; i++) {
             average[i] = 0;
             dispersion[i] = 0;
@@ -330,7 +342,6 @@ export class LayerNormalization implements NormLayer {
             this.v_t_delta[i] = 0;
         }
     }
-
     forward(X: number[][]): number[][] {
         this.inputData = Copy(X);
         this.outputData = Copy(X);
@@ -339,6 +350,7 @@ export class LayerNormalization implements NormLayer {
         let avg = new Array(N);
         let varData = new Array(N);
         let Xnorm = Copy(X);
+
         for (let i = 0; i < N; i++) {
             avg[i] = 0;
             varData[i] = 0;
@@ -622,9 +634,9 @@ export function forwardProp(network: Node[][], inputs: number[][], batchSize: nu
                 let place = normLayerList[layerIdx]['place'];
                 let normLayer = normLayerList[layerIdx]['layer'];
                 let input = NodeLayerMethod.constructNormInput(currentLayer, place);
-                // console.log(input)   checkpoint
+                 //console.log(input)
                 let normResult = normLayer.forward(input);
-                // console.log(normResult)
+                //console.log(normResult)
                 NodeLayerMethod.setNormOutput(currentLayer, normResult, place);
                 NodeLayerMethod.layerActivate(currentLayer, batchSize);
             } else {
