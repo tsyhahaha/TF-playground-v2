@@ -332,65 +332,60 @@ export class LayerNormalization implements NormLayer {
     }
 
     forward(X: number[][]): number[][] {
-        let X_T = T(X)
-        this.inputData = Copy(X_T);
-        this.outputData = Copy(X_T);
-        let D = X_T.length;
-        let N = X_T[0].length;
-        if (N == 1) {
-            return this.inputData;
-        }
+        this.inputData = Copy(X);
+        this.outputData = Copy(X);
+        let D = X.length;
+        let N = X[0].length;
         let avg = new Array(N);
         let varData = new Array(N);
-        let Xnorm = Copy(X_T);
+        let Xnorm = Copy(X);
         for (let i = 0; i < N; i++) {
             avg[i] = 0;
             varData[i] = 0;
             for (let j = 0; j < D; j++) {
-                avg[i] += X_T[j][i];
+                avg[i] += X[j][i];
             }
             avg[i] /= D;
             for (let j = 0; j < D; j++) {
-                varData[i] += (X_T[j][i] - avg[i]) * (X_T[j][i] - avg[i]);
+                varData[i] += (X[j][i] - avg[i]) * (X[j][i] - avg[i]);
             }
             varData[i] = Math.sqrt(varData[i] / D + this.epsVal);
             for (let j = 0; j < D; j++) {
-                Xnorm[j][i] = (X_T[j][i] - avg[i]) / varData[i];
+                Xnorm[j][i] = (X[j][i] - avg[i]) / varData[i];
                 this.outputData[j][i] = this.alpha[j] * Xnorm[j][i] + this.delta[j];
             }
         }
         this.Xnorm = Copy(Xnorm);
         this.varData = Copy1D(varData);
-        return T(this.outputData);
+        return this.outputData;
     }
 
     backward(dOutput: number[][]): number[][] {
-        let dOutput_T = T(dOutput)
-        let D = dOutput_T.length;
-        let N = dOutput_T[0].length;
-        this.dInput = Copy(dOutput_T);
+        let D = dOutput.length;
+        let N = dOutput[0].length;
+        this.dInput = Copy(dOutput);
         this.dAlpha = new Array(D);
         this.dDelta = new Array(D);
         for (let j = 0; j < D; j++) {
             this.dDelta[j] = 0;
             this.dAlpha[j] = 0;
             for (let i = 0; i < N; i++) {
-                this.dDelta[j] += dOutput_T[j][i];
-                this.dAlpha[j] += dOutput_T[j][i] * this.Xnorm[j][i];
+                this.dDelta[j] += dOutput[j][i];
+                this.dAlpha[j] += dOutput[j][i] * this.Xnorm[j][i];
             }
         }
         for (let i = 0; i < N; i++) {
             let sumdXnorm = 0;
             let sumdXnormX = 0;
             for (let k = 0; k < D; k++) {
-                sumdXnorm += (dOutput_T[k][i] * this.alpha[k]);
-                sumdXnormX += (dOutput_T[k][i] * this.alpha[k] * this.Xnorm[k][i]);
+                sumdXnorm += (dOutput[k][i] * this.alpha[k]);
+                sumdXnormX += (dOutput[k][i] * this.alpha[k] * this.Xnorm[k][i]);
             }
             for (let j = 0; j < D; j++) {
-                this.dInput[j][i] = 1 / (D * this.varData[i]) * (D * dOutput_T[j][i] * this.alpha[j] - this.Xnorm[j][i] * sumdXnormX - sumdXnorm);
+                this.dInput[j][i] = 1 / (D * this.varData[i]) * (D * dOutput[j][i] * this.alpha[j] - this.Xnorm[j][i] * sumdXnormX - sumdXnorm);
             }
         }
-        return T(this.dInput);
+        return this.dInput;
     }
 
     dispersion: number[];
@@ -597,7 +592,7 @@ export function buildNetwork(
  * @return The final output of the network.
  */
 export function forwardProp(network: Node[][], inputs: number[][], batchSize: number,
-                            normLayerList: { [layerNum: number]: { layer: NormLayer, place: number }}): number[] {
+                            normLayerList: { [layerNum: number]: { layer: NormLayer, place: number } }): number[] {
     let inputLayer = network[0];
     if (inputs[0].length !== inputLayer.length) {
         throw new Error("The number of inputs must match the number of nodes in" +
@@ -627,7 +622,7 @@ export function forwardProp(network: Node[][], inputs: number[][], batchSize: nu
                 let place = normLayerList[layerIdx]['place'];
                 let normLayer = normLayerList[layerIdx]['layer'];
                 let input = NodeLayerMethod.constructNormInput(currentLayer, place);
-                // console.log(input)
+                // console.log(input)   checkpoint
                 let normResult = normLayer.forward(input);
                 // console.log(normResult)
                 NodeLayerMethod.setNormOutput(currentLayer, normResult, place);

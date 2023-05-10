@@ -1045,7 +1045,7 @@ function oneStep(): void {
         state.nowSize += 1;
         if (state.nowSize % state.batchSize === 0) {
             nn.forwardProp(network, inputMatrix, state.nowSize, normLayerList);
-            nn.backProp(network, labelList, nn.Errors.SQUARE, state.nowSize);
+            nn.backProp(network, labelList, nn.Errors.SQUARE, state.nowSize, normLayerList);
             if (state.optimizer === 0) {
                 nn.updateWeightsSGD(network,
                     state.learningRate,

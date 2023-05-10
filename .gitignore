@@ -3,3 +3,5 @@ dist/
 *.log
 .vscode
 .idea/
+test.js
+test.ts
