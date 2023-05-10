@@ -163,7 +163,7 @@ export class BatchNormalization implements NormLayer {
         }
     }
 
-    forward(X: number[][], type: string): number[][] {
+    forward(X: number[][]): number[][] {
         this.inputData = Copy(X);
         this.outputData = Copy(X);
         let Xnorm = Copy(X);
@@ -259,7 +259,7 @@ export class LayerNormalization implements NormLayer {
         }
     }
 
-    forward(X: number[][], mode: string): number[][] {
+    forward(X: number[][]): number[][] {
         this.inputData = Copy(X);
         this.outputData = Copy(X);
         let D = X.length;
