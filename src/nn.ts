@@ -27,6 +27,7 @@ export class Node {
     totalInput: number[] = [];
     output: number[] = [];
     averageOutput: number;
+    averageOutputNotNorm: number;
     /** Error derivative with respect to this node's output. */
     outputDer: number[] = [];
     /** Error derivative with respect to this node's total input. */
@@ -42,9 +43,9 @@ export class Node {
     /**
      * Creates a new node with the provided id and activation function.
      */
-    constructor(id: string,normalization:number, activation: ActivationFunction, initZero?: boolean) {
+    constructor(id: string, normalization: number, activation: ActivationFunction, initZero?: boolean) {
         this.id = id;
-        this.normalization=normalization
+        this.normalization = normalization
         this.activation = activation;
         if (initZero) {
             this.bias = 0;
@@ -52,11 +53,11 @@ export class Node {
     }
 
     /** Recomputes the node's output and returns it. */
-    updateOutput(batchSize: number): number[] {
+    public updateOutput(batchSize: number): number[] {
         for (let i = 0; i < batchSize; i++) {
             this.totalInput[i] = this.bias;
         }
-
+        // sum the link: weight * source
         for (let j = 0; j < this.inputLinks.length; j++) {
             let link = this.inputLinks[j];
             for (let i = 0; i < batchSize; i++) {
@@ -65,12 +66,80 @@ export class Node {
         }
         this.averageOutput = 0
         // console.log("totalInput+weight: "+this.totalInput)
-        for(let i = 0; i < batchSize; i++) {
+        for (let i = 0; i < batchSize; i++) {
             this.output[i] = this.activation.output(this.totalInput[i]);
             this.averageOutput += this.output[i]
         }
         this.averageOutput /= this.output.length
+        this.averageOutputNotNorm = this.averageOutput;
         return this.output;
+    }
+}
+
+class NodeLayerMethod {
+    public static layerInput(layer: Node[], batchSize: number) {
+        /** to update node's total input at layer level */
+        for (let i = 0; i < layer.length; i++) {
+            let node = layer[i]
+            for (let j = 0; j < batchSize; j++) {
+                node.totalInput[j] = node.bias;
+            }
+            // sum the link: weight * source
+            for (let j = 0; j < node.inputLinks.length; j++) {
+                let link = node.inputLinks[j];
+                for (let i = 0; i < batchSize; i++) {
+                    node.totalInput[i] += link.weight * link.source.output[i];
+                }
+            }
+        }
+    };
+
+    public static layerActivate(layer: Node[], batchSize: number) {
+        /** to compute the activation at layer level*/
+        for (let i = 0; i < layer.length; i++) {
+            let node = layer[i]
+            node.averageOutput = 0
+            // console.log("totalInput+weight: "+this.totalInput)
+            for (let i = 0; i < batchSize; i++) {
+                node.output[i] = node.activation.output(node.totalInput[i]);
+                node.averageOutput += node.output[i]
+            }
+            node.averageOutput /= node.output.length
+            node.averageOutputNotNorm = node.averageOutput;
+        }
+    };
+
+    public static constructNormInput(layer: Node[], type: number): number[][] {
+        /**
+         * type = 0: 获取activation前的结果
+         * type = 1: 获取activation后的结果
+         * */
+        let input = []  // 构造的input，其每列为单条数据
+        let batchSize = layer[0].totalInput.length
+        for (let i = 0; i < batchSize; i++) {
+            input[i] = []
+        }
+        for (let i = 0; i < layer.length; i++) {
+            let node = layer[i];
+            if (type == 0) {
+                input[i] = Copy1D(node.totalInput);
+            } else if (type == 1) {
+                input[i] = Copy1D(node.output);
+            }
+
+        }
+        return input;
+    }
+
+    public static setNormOutput(layer: Node[], normOutput: number[][], type: number) {
+        for (let i = 0; i < layer.length; i++) {
+            let node = layer[i];
+            if (type == 0) {
+                node.totalInput = Copy1D(normOutput[i]);
+            } else if (type == 1) {
+                node.output = Copy1D(normOutput[i]);
+            }
+        }
     }
 }
 
@@ -108,7 +177,7 @@ type NormLayer = {
     v_t_alpha: number[];
     v_t_delta: number[];
 
-    forward(X: number[][], type: string): number[][];
+    forward(X: number[][]): number[][];
     backward(dOutput: number[][]): number[][];
 };
 
@@ -163,7 +232,7 @@ export class BatchNormalization implements NormLayer {
         }
     }
 
-    forward(X: number[][], type: string): number[][] {
+    forward(X: number[][]): number[][] {
         this.inputData = Copy(X);
         this.outputData = Copy(X);
         let Xnorm = Copy(X);
@@ -179,9 +248,10 @@ export class BatchNormalization implements NormLayer {
             }
             average[i] /= N;
             for (let j = 0; j < N; j++) {
-                dispersion[i] += (X[i][j] - average[i])^2;
-            }dispersion[i] = dispersion[i] / N;
-            for (let j = 0; j < N; j++){
+                dispersion[i] += (X[i][j] - average[i]) ^ 2;
+            }
+            dispersion[i] = dispersion[i] / N;
+            for (let j = 0; j < N; j++) {
                 Xnorm[i][j] = (X[i][j] - average[i]) / Math.sqrt(dispersion[i] + this.eps);
                 this.outputData[i][j] = this.alpha[i] * Xnorm[i][j] + this.delta[i];
             }
@@ -259,60 +329,63 @@ export class LayerNormalization implements NormLayer {
         }
     }
 
-    forward(X: number[][], mode: string): number[][] {
-        this.inputData = Copy(X);
-        this.outputData = Copy(X);
-        let D = X.length;
-        let N = X[0].length;
+    forward(X: number[][]): number[][] {
+        let X_T = T(X)
+        this.inputData = Copy(X_T);
+        this.outputData = Copy(X_T);
+        let D = X_T.length;
+        let N = X_T[0].length;
         let avg = new Array(N);
         let varData = new Array(N);
-        let Xnorm = Copy(X);
+        let Xnorm = Copy(X_T);
         for (let i = 0; i < N; i++) {
             avg[i] = 0;
             varData[i] = 0;
             for (let j = 0; j < D; j++) {
-                avg[i] += X[j][i];
+                avg[i] += X_T[j][i];
             }
             avg[i] /= D;
             for (let j = 0; j < D; j++) {
-                varData[i] += (X[j][i] - avg[i]) * (X[j][i] - avg[i]);
+                varData[i] += (X_T[j][i] - avg[i]) * (X_T[j][i] - avg[i]);
             }
             varData[i] = Math.sqrt(varData[i] / D + this.epsVal);
             for (let j = 0; j < D; j++) {
-                Xnorm[j][i] = (X[j][i] - avg[i]) / varData[i];
+                Xnorm[j][i] = (X_T[j][i] - avg[i]) / varData[i];
                 this.outputData[j][i] = this.alpha[j] * Xnorm[j][i] + this.delta[j];
             }
         }
         this.Xnorm = Copy(Xnorm);
         this.varData = Copy1D(varData);
-        return this.outputData;
+        return T(this.outputData);
     }
+
     backward(dOutput: number[][]): number[][] {
-        let D = dOutput.length;
-        let N = dOutput[0].length;
-        this.dInput = Copy(dOutput);
+        let dOutput_T = T(dOutput)
+        let D = dOutput_T.length;
+        let N = dOutput_T[0].length;
+        this.dInput = Copy(dOutput_T);
         this.dAlpha = new Array(D);
         this.dDelta = new Array(D);
         for (let j = 0; j < D; j++) {
             this.dDelta[j] = 0;
             this.dAlpha[j] = 0;
             for (let i = 0; i < N; i++) {
-                this.dDelta[j] += dOutput[j][i];
-                this.dAlpha[j] += dOutput[j][i] * this.Xnorm[j][i];
+                this.dDelta[j] += dOutput_T[j][i];
+                this.dAlpha[j] += dOutput_T[j][i] * this.Xnorm[j][i];
             }
         }
         for (let i = 0; i < N; i++) {
             let sumdXnorm = 0;
             let sumdXnormX = 0;
             for (let k = 0; k < D; k++) {
-                sumdXnorm += (dOutput[k][i] * this.alpha[k]);
-                sumdXnormX += (dOutput[k][i] * this.alpha[k] * this.Xnorm[k][i]);
+                sumdXnorm += (dOutput_T[k][i] * this.alpha[k]);
+                sumdXnormX += (dOutput_T[k][i] * this.alpha[k] * this.Xnorm[k][i]);
             }
             for (let j = 0; j < D; j++) {
-                this.dInput[j][i] = 1 / (D * this.varData[i]) * (D * dOutput[j][i] * this.alpha[j] - this.Xnorm[j][i] * sumdXnormX - sumdXnorm);
+                this.dInput[j][i] = 1 / (D * this.varData[i]) * (D * dOutput_T[j][i] * this.alpha[j] - this.Xnorm[j][i] * sumdXnormX - sumdXnorm);
             }
         }
-        return this.dInput;
+        return T(this.dInput);
     }
 
     dispersion: number[];
@@ -350,7 +423,7 @@ export class Errors {
 }
 
 /** Polyfill for TANH */
-(Math as any).tanh = (Math as any).tanh || function(x) {
+(Math as any).tanh = (Math as any).tanh || function (x) {
     if (x === Infinity) {
         return 1;
     } else if (x === -Infinity) {
@@ -457,7 +530,7 @@ export class Link {
 
 // Add `useBatchNormalization` and `useLayerNormalization` to the function parameters.
 export function buildNetwork(
-    networkShape: number[],normalization:number, activation: ActivationFunction,
+    networkShape: number[], normalization: number, activation: ActivationFunction,
     outputActivation: ActivationFunction,
     regularization: RegularizationFunction,
     inputIds: string[], initZero?: boolean,
@@ -487,9 +560,9 @@ export function buildNetwork(
             } else {
                 id++;
             }
-            let node = new Node(nodeId,normalization,
+            let node = new Node(nodeId, normalization,
                 isOutputLayer ? outputActivation : activation, initZero);
-            if(normalization>0&&~isInputLayer&&~isOutputLayer) node.normlayer=normlayer;
+            if (normalization > 0 && ~isInputLayer && ~isOutputLayer) node.normlayer = normlayer;
             currentLayer.push(node);
             if (layerIdx >= 1) {
                 // Add links from nodes in the previous layer to this node.
@@ -499,8 +572,6 @@ export function buildNetwork(
                     prevNode.outputs.push(link);
                     node.inputLinks.push(link);
                 }
-
-
             }
         }
     }
@@ -517,9 +588,11 @@ export function buildNetwork(
  * @param inputs The input array. Its length should match the number of input
  *     nodes in the network.
  * @param batchSize
+ * @param normLayerList
  * @return The final output of the network.
  */
-export function forwardProp(network: Node[][], inputs: number[][], batchSize: number): number[] {
+export function forwardProp(network: Node[][], inputs: number[][], batchSize: number,
+                            normLayerList: { [layerNum: number]: { normLayer: NormLayer, place: number } }): number[] {
     let inputLayer = network[0];
     if (inputs[0].length !== inputLayer.length) {
         throw new Error("The number of inputs must match the number of nodes in" +
@@ -528,18 +601,40 @@ export function forwardProp(network: Node[][], inputs: number[][], batchSize: nu
     // Update the input layer.
     for (let i = 0; i < inputLayer.length; i++) {
         let node = inputLayer[i];
-        for(let j = 0; j < batchSize; j++) {
-            node.output[j]=inputs[j][i];  // 第 j 条数据的第 i 个特征
+        for (let j = 0; j < batchSize; j++) {
+            node.output[j] = inputs[j][i];  // 第 j 条数据的第 i 个特征
         }
     }
     for (let layerIdx = 1; layerIdx < network.length; layerIdx++) {
+        /**
+         * 如果没有 norm 这一步直接完成计算；
+         * 如果有 norm 这一步完成 outputNotNorm 的计算
+         * */
         let currentLayer = network[layerIdx];
         // Update all the nodes in this layer.
-        for (let i = 0; i < currentLayer.length; i++) {
-            let node = currentLayer[i];
-            node.updateOutput(batchSize);
-        }
+        NodeLayerMethod.layerInput(currentLayer, batchSize);
+        NodeLayerMethod.layerActivate(currentLayer, batchSize);
     }
+    if (normLayerList != null) {
+        for (let layerIdx = 1; layerIdx < network.length - 1; layerIdx++) {
+            let currentLayer = network[layerIdx];
+            if(layerIdx in normLayerList) {
+                let place = normLayerList[layerIdx].place;
+                let normLayer = normLayerList[layerIdx].normLayer;
+                let input = NodeLayerMethod.constructNormInput(currentLayer, place);
+                let normResult = normLayer.forward(input);
+                NodeLayerMethod.setNormOutput(currentLayer, normResult, place);
+                NodeLayerMethod.layerActivate(currentLayer, batchSize);
+            } else {
+                NodeLayerMethod.layerInput(currentLayer, batchSize);
+                NodeLayerMethod.layerActivate(currentLayer, batchSize);
+            }
+        }
+        /** 最后一层的 output node 只需更新输出 */
+        let currentLayer = network[network.length - 1];
+        currentLayer[0].updateOutput(batchSize);
+    }
+
     return network[network.length - 1][0].output;
 }
 
@@ -555,7 +650,7 @@ export function backProp(network: Node[][], target: number[],
     // The output node is a special case. We use the user-defined error
     // function for the derivative.
     let outputNode = network[network.length - 1][0];
-    for(let i=0; i < batchSize; i++) {
+    for (let i = 0; i < batchSize; i++) {
         outputNode.outputDer[i] = errorFunc.der(outputNode.output[i], target[i]);
     }
     // Go through the layers backwards.
@@ -566,7 +661,7 @@ export function backProp(network: Node[][], target: number[],
         // 2) each of its input weights.
         for (let i = 0; i < currentLayer.length; i++) {
             let node = currentLayer[i];
-            for(let j=0; j<batchSize; j++) {
+            for (let j = 0; j < batchSize; j++) {
                 node.inputDer[j] = node.outputDer[j] * node.activation.der(node.totalInput[j]);
             }
         }
@@ -578,7 +673,7 @@ export function backProp(network: Node[][], target: number[],
                 if (link.isDead) {
                     continue;
                 }
-                for(let k=0; k<batchSize; k++) {
+                for (let k = 0; k < batchSize; k++) {
                     link.errorDer = node.inputDer[k] * link.source.output[k];
                     link.accErrorDer += link.errorDer;
                     link.numAccumulatedDers++;
@@ -598,7 +693,7 @@ export function backProp(network: Node[][], target: number[],
             }
             for (let j = 0; j < node.outputs.length; j++) {
                 let output = node.outputs[j];
-                for(let k=0; k < batchSize; k++) {
+                for (let k = 0; k < batchSize; k++) {
                     node.outputDer[k] += output.weight * output.dest.inputDer[k];
                 }
             }
@@ -619,7 +714,7 @@ export function backProp(network: Node[][], target: number[],
  * @param epsilon - 防止除零错误的小量值。
  */
 export function updateWeightsAdam(network: Node[][], learningRate: number,
-                                  beta1: number=0.99, beta2: number=0.999, epsilon: number=10e-8) {
+                                  beta1: number = 0.99, beta2: number = 0.999, epsilon: number = 10e-8) {
     let m: number[][][] = [];  // 一阶动量
     let v: number[][][] = [];  // 二阶动量
     let t = 0;  // 时间步长
@@ -635,12 +730,12 @@ export function updateWeightsAdam(network: Node[][], learningRate: number,
             // 更新节点的偏置
             let numAccumulatedDers = node.inputDer.length
             let accInputDer = 0
-            for(let j=0; j<node.inputDer.length; j++) {
+            for (let j = 0; j < node.inputDer.length; j++) {
                 accInputDer += node.inputDer[j];
             }
             if (numAccumulatedDers > 0) {
                 node.bias -= learningRate * accInputDer / numAccumulatedDers;
-                for(let j=0; j<node.inputDer.length; j++) {
+                for (let j = 0; j < node.inputDer.length; j++) {
                     node.inputDer[i] = 0;
                 }
             }
@@ -674,6 +769,7 @@ export function updateWeightsAdam(network: Node[][], learningRate: number,
         }
     }
 }
+
 export function updateWeightsSGD(network: Node[][], learningRate: number,
                                  regularizationRate: number) {
     for (let layerIdx = 1; layerIdx < network.length; layerIdx++) {
@@ -683,12 +779,12 @@ export function updateWeightsSGD(network: Node[][], learningRate: number,
             // Update the node's bias.
             let numAccumulatedDers = node.inputDer.length
             let accInputDer = 0
-            for(let j=0; j<node.inputDer.length; j++) {
+            for (let j = 0; j < node.inputDer.length; j++) {
                 accInputDer += node.inputDer[j];
             }
             if (numAccumulatedDers > 0) {
                 node.bias -= learningRate * accInputDer / numAccumulatedDers;
-                for(let j=0; j<node.inputDer.length; j++) {
+                for (let j = 0; j < node.inputDer.length; j++) {
                     node.inputDer[i] = 0;
                 }
             }
@@ -740,4 +836,16 @@ export function forEachNode(network: Node[][], ignoreInputs: boolean,
 // 貌似不论是回归还是分类，最终都只有一个输出节点
 export function getOutputNode(network: Node[][]) {
     return network[network.length - 1][0];
+}
+
+export const T = (ary: any[]) => {
+    let ar = []
+    for (let i = 0; i < ary[0].length; i++) {
+        let cd = [];
+        for (let j = 0; j < ary.length; j++) {
+            cd.push(ary[j][i])
+        }
+        ar.push(cd)
+    }
+    return ar
 }
