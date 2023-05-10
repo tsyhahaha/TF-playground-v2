@@ -414,6 +414,8 @@ export class BatchNormalization implements NormLayer {
         if (N == 1) {
             return this.dInput;
         }
+        let flagInput = false;
+        let flagOutput = false;
         this.dAlpha = new Array(N);
         this.dDelta = new Array(N);
         for (let i = 0; i < L; i++) {
@@ -435,6 +437,10 @@ export class BatchNormalization implements NormLayer {
             for (let j = 0; j < N; j++) {
                 this.dInput[i][j] += dOutput[i][j] * this.alpha[i] / Math.sqrt(this.batchVar[i] + this.eps) + dDisp * 2 * (this.inputData[i][j] - this.batchAvg[i]) / N + dAvg / N;
             }
+        }
+        if(this.dInput[0].length == 0) {
+            console.log(dOutput)
+            console.log(this.dInput)
         }
         return this.dInput;
     }
@@ -807,7 +813,6 @@ export function backProp(network: Node[][], target: number[],
     let outputNode = network[network.length - 1][0];
     for (let i = 0; i < batchSize; i++) {
         outputNode.outputDer[i] = errorFunc.der(outputNode.output[i], target[i]);
-
     }
     // Go through the layers backwards.
     for (let layerIdx = network.length - 1; layerIdx >= 1; layerIdx--) {
@@ -819,7 +824,7 @@ export function backProp(network: Node[][], target: number[],
         if(normLayerList != null && layerIdx in normLayerList) {
             let place = normLayerList[layerIdx]['place'];
             let normLayer = normLayerList[layerIdx]['layer'];
-            if(place == 1) {
+            if(place == 0) {
                 LayerMethod.layerDInput(currentLayer, batchSize);
                 let input = LayerMethod.constructNormInput(currentLayer, place+2);
                 // console.log(input)   // checkpoint
