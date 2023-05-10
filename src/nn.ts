@@ -56,20 +56,26 @@ export class Node {
     public updateOutput(batchSize: number): number[] {
         for (let i = 0; i < batchSize; i++) {
             this.totalInput[i] = this.bias;
+            if(isNaN(this.totalInput[i])) {
+                console.log('total input is nan1, id='+this.id);
+            }
         }
         // sum the link: weight * source
         for (let j = 0; j < this.inputLinks.length; j++) {
             let link = this.inputLinks[j];
-            if(isNaN(link.weight)) {
-                console.log(link);
-            }
             for (let i = 0; i < batchSize; i++) {
                 this.totalInput[i] += link.weight * link.source.output[i];
+                if(isNaN(this.totalInput[i])) {
+                    console.log('total input is nan2, id='+this.id);
+                }
             }
         }
         this.averageOutput = 0
         for (let i = 0; i < batchSize; i++) {
             this.output[i] = this.activation.output(this.totalInput[i]);
+            if(isNaN(this.output[i])) {
+                console.log("output is nan1, id="+this.id);
+            }
             this.averageOutput += this.output[i]
         }
         this.averageOutput /= this.output.length
@@ -79,24 +85,28 @@ export class Node {
 }
 
 class LayerMethod {
+    public static disLayerInfo(layer: Node[]) {
+
+    }
+
     public static layerInput(layer: Node[], batchSize: number) {
         /** to update node's total input at layer level */
         for (let i = 0; i < layer.length; i++) {
             let node = layer[i]
             for (let j = 0; j < batchSize; j++) {
                 node.totalInput[j] = node.bias;
+                if(isNaN(node.totalInput[j])) {
+                    console.log('total input is nan3, id='+node.id);
+                }
             }
             // sum the link: weight * source
             for (let j = 0; j < node.inputLinks.length; j++) {
                 let link = node.inputLinks[j];
-                if(isNaN(link.weight)) {
-                    console.log(node.id + link)
-                }
                 for (let k = 0; k < batchSize; k++) {
-                    if(isNaN(node.totalInput[k])) {
-                        console.log("totalInput is nan: "+node.id)
-                    }
                     node.totalInput[k] += link.weight * link.source.output[k];
+                    if(isNaN(node.totalInput[k])) {
+                        console.log('total input is nan4, id='+node.id);
+                    }
                 }
             }
             // console.log("batchSize = "+batchSize+", totalInput: "+node.totalInput)
@@ -111,7 +121,25 @@ class LayerMethod {
             for (let j = 0; j < batchSize; j++) {
                 node.output[j] = node.activation.output(node.totalInput[j]);
                 if(isNaN(node.output[j])) {
-                    console.log("node output is nan: "+node.id);
+                    console.log("output is nan2, id="+node.id);
+                }
+                node.averageOutput += node.output[j]
+            }
+            node.averageOutput /= node.output.length
+            node.averageOutputNotNorm = node.averageOutput;
+        }
+    };
+
+    public static layerActivateDir(layer: Node[], batchSize: number, NormResult: number[][]) {
+        /** to compute the activation at layer level*/
+        for (let i = 0; i < layer.length; i++) {
+            let node = layer[i]
+            node.averageOutput = 0
+            for (let j = 0; j < batchSize; j++) {
+                node.output[j] = node.activation.output(NormResult[i][j]);
+                if(isNaN(node.output[j])) {
+                    console.log("output is nan3, id="+node.id);
+                    console.log(NormResult[i][j])
                 }
                 node.averageOutput += node.output[j]
             }
@@ -125,6 +153,22 @@ class LayerMethod {
             let node = layer[i];
             for (let j = 0; j < batchSize; j++) {
                 node.inputDer[j] = node.outputDer[j] * node.activation.der(node.totalInput[j]);
+                if(isNaN(node.inputDer[j])) {
+                    console.log('inputDer is nan1, id='+node.id)
+                }
+            }
+        }
+    }
+
+    public static layerDInputDir(layer: Node[], batchSize: number, normOutputDer: number[][]) {
+        for (let i = 0; i < layer.length; i++) {
+            let node = layer[i];
+            for (let j = 0; j < batchSize; j++) {
+                node.inputDer[j] = normOutputDer[i][j] * node.activation.der(node.totalInput[j]);
+                if(isNaN(node.inputDer[j])) {
+                    console.log('inputDer is nan2, id='+node.id)
+                    console.log(normOutputDer)
+                }
             }
         }
     }
@@ -147,6 +191,24 @@ class LayerMethod {
         }
     }
 
+    public static layerDLinkDir(layer: Node[], batchSize: number, normInputDer: number[][]) {
+        // Error derivative with respect to each weight coming into the node.
+        for (let i = 0; i < layer.length; i++) {
+            let node = layer[i];
+            for (let j = 0; j < node.inputLinks.length; j++) {
+                let link = node.inputLinks[j];
+                if (link.isDead) {
+                    continue;
+                }
+                for (let k = 0; k < batchSize; k++) {
+                    link.errorDer = normInputDer[i][k] * link.source.output[k];
+                    link.accErrorDer += link.errorDer;
+                    link.numAccumulatedDers++;
+                }
+            }
+        }
+    }
+
     public static layerDOutput(prevLayer: Node[], batchSize: number) {
         for (let i = 0; i < prevLayer.length; i++) {
             let node = prevLayer[i];
@@ -158,6 +220,9 @@ class LayerMethod {
                 let output = node.outputs[j];
                 for (let k = 0; k < batchSize; k++) {
                     node.outputDer[k] += output.weight * output.dest.inputDer[k];
+                    if(isNaN(node.outputDer[k])) {
+                        console.log('output Der is nan1, id='+node.id)
+                    }
                 }
             }
         }
@@ -185,21 +250,6 @@ class LayerMethod {
             }
         }
         return input;
-    }
-
-    public static setNormOutput(layer: Node[], normOutput: number[][], type: number) {
-        for (let i = 0; i < layer.length; i++) {
-            let node = layer[i];
-            if (type == 0) {
-                node.totalInput = Copy1D(normOutput[i]);
-            } else if (type == 1) {
-                node.output = Copy1D(normOutput[i]);
-            } else if(type == 2) {
-                node.inputDer = Copy1D(normOutput[i]);
-            } else if(type == 3) {
-                node.outputDer = Copy1D(normOutput[i]);
-            }
-        }
     }
 }
 
@@ -291,8 +341,8 @@ export class BatchNormalization implements NormLayer {
             this.v_t_delta[i] = 0;
         }
     }
-    
-    forward(X: number[][]): number[][] { // mode: 'train' or 'eval'
+
+    forward(X: number[][]): number[][] {
 
         // console.log('here!');
         this.inputData = Copy(X);
@@ -316,24 +366,40 @@ export class BatchNormalization implements NormLayer {
             this.Xnorm = Copy(Xnorm);
             return this.outputData;
         }*/
-
+        let flagInput = false;
+        let flagOutput = false;
         for (let i = 0; i < L; i++) {
             average[i] = 0;
             dispersion[i] = 0;
             for (let j = 0; j < N; j++) {
                 average[i] += X[i][j];
+                if(isNaN(X[i][j])) {
+                    flagInput = true;
+                }
             }
             average[i] /= N;
             for (let j = 0; j < N; j++) {
-                dispersion[i] += (X[i][j] - average[i]) ^ 2;
+                dispersion[i] += (X[i][j] - average[i]) ** 2;
             }
             dispersion[i] = dispersion[i] / N;
             for (let j = 0; j < N; j++) {
                 Xnorm[i][j] = (X[i][j] - average[i]) / Math.sqrt(dispersion[i] + this.eps);
                 this.outputData[i][j] = this.alpha[i] * Xnorm[i][j] + this.delta[i];
+                if(isNaN(this.outputData[i][j])) {
+                    flagOutput = true;
+                }
             }
             this.avgMoving[i] = this.rateDecay * this.avgMoving[i] + (1 - this.rateDecay) * average[i];
             this.varMoving[i] = this.rateDecay * this.varMoving[i] + (1 - this.rateDecay) * dispersion[i];
+        }
+        if(flagInput) {
+            console.log("batch norm input is nan")
+            console.log(this.inputData);
+        }
+        if(flagOutput) {
+            console.log("batch norm output is nan");
+            console.log(this.inputData);
+            console.log(this.outputData)
         }
         this.Xnorm = Copy(Xnorm);
         this.batchAvg = Copy1D(average);
@@ -687,6 +753,9 @@ export function forwardProp(network: Node[][], inputs: number[][], batchSize: nu
         let node = inputLayer[i];
         for (let j = 0; j < batchSize; j++) {
             node.output[j] = inputs[j][i];  // 第 j 条数据的第 i 个特征
+            if(isNaN(node.output[j])) {
+                console.log('output is nan 4, id='+node.id)
+            }
         }
     }
     for (let layerIdx = 1; layerIdx < network.length; layerIdx++) {
@@ -709,8 +778,7 @@ export function forwardProp(network: Node[][], inputs: number[][], batchSize: nu
                 // console.log(input)   // checkpoint
                 let normResult = normLayer.forward(input);
                 // console.log(normResult)
-                LayerMethod.setNormOutput(currentLayer, normResult, place);
-                LayerMethod.layerActivate(currentLayer, batchSize);
+                LayerMethod.layerActivateDir(currentLayer, batchSize, normResult);
             } else {
                 LayerMethod.layerInput(currentLayer, batchSize);
                 LayerMethod.layerActivate(currentLayer, batchSize);
@@ -739,6 +807,7 @@ export function backProp(network: Node[][], target: number[],
     let outputNode = network[network.length - 1][0];
     for (let i = 0; i < batchSize; i++) {
         outputNode.outputDer[i] = errorFunc.der(outputNode.output[i], target[i]);
+
     }
     // Go through the layers backwards.
     for (let layerIdx = network.length - 1; layerIdx >= 1; layerIdx--) {
@@ -746,20 +815,27 @@ export function backProp(network: Node[][], target: number[],
         // Compute the error derivative of each node with respect to:
         // 1) its total input
         // 2) each of its input weights.
-        LayerMethod.layerDInput(currentLayer, batchSize);
         // Error derivative with respect to each weight coming into the node.
-        // if(normLayerList != null && layerIdx in normLayerList) {
-        //     let place = normLayerList[layerIdx]['place'];
-        //     let normLayer = normLayerList[layerIdx]['layer'];
-        //     let input = LayerMethod.constructNormInput(currentLayer, place+2);
-        //     // console.log(input)   // checkpoint
-        //     let normResult = normLayer.backward(input);
-        //     LayerMethod.setNormOutput(currentLayer, normResult, place+2);
-        //     if(place == 1) {
-        //         LayerMethod.layerDInput(currentLayer, batchSize);
-        //     }
-        // }
-        LayerMethod.layerDLink(currentLayer, batchSize);
+        if(normLayerList != null && layerIdx in normLayerList) {
+            let place = normLayerList[layerIdx]['place'];
+            let normLayer = normLayerList[layerIdx]['layer'];
+            if(place == 1) {
+                LayerMethod.layerDInput(currentLayer, batchSize);
+                let input = LayerMethod.constructNormInput(currentLayer, place+2);
+                // console.log(input)   // checkpoint
+                let normResult = normLayer.backward(input);
+                LayerMethod.layerDLinkDir(currentLayer, batchSize, normResult);
+            }  else  {
+                let input = LayerMethod.constructNormInput(currentLayer, place+2);
+                // console.log(input)   // checkpoint
+                let normResult = normLayer.backward(input);
+                LayerMethod.layerDInputDir(currentLayer, batchSize, normResult)
+                LayerMethod.layerDLink(currentLayer, batchSize);
+            }
+        } else {
+            LayerMethod.layerDInput(currentLayer, batchSize);
+            LayerMethod.layerDLink(currentLayer, batchSize);
+        }
         // Compute derivative with respect to prev layer's output
         if (layerIdx === 1) {
             continue;
@@ -803,6 +879,9 @@ export function updateWeightsAdam(network: Node[][], learningRate: number,
             }
             if (numAccumulatedDers > 0) {
                 node.bias -= learningRate * accInputDer / numAccumulatedDers;
+                if(isNaN(node.bias)) {
+                    console.log('node bias is nan1, id='+node.id)
+                }
                 for (let j = 0; j < node.inputDer.length; j++) {
                     node.inputDer[i] = 0;
                 }
@@ -852,6 +931,9 @@ export function updateWeightsSGD(network: Node[][], learningRate: number,
             }
             if (numAccumulatedDers > 0) {
                 node.bias -= learningRate * accInputDer / numAccumulatedDers;
+                if(isNaN(node.bias)) {
+                    console.log('node bias is nan2, id='+node.id)
+                }
                 for (let j = 0; j < node.inputDer.length; j++) {
                     node.inputDer[i] = 0;
                 }
