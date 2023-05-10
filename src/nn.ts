@@ -291,8 +291,9 @@ export class BatchNormalization implements NormLayer {
             this.v_t_delta[i] = 0;
         }
     }
+    
+    forward(X: number[][]): number[][] { // mode: 'train' or 'eval'
 
-    forward(X: number[][]): number[][] {
         // console.log('here!');
         this.inputData = Copy(X);
         this.outputData = Copy(X);
