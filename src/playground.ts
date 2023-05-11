@@ -171,8 +171,9 @@ let linkWidthScale = d3.scale.linear()
     .domain([0, 5])
     .range([1, 10])
     .clamp(true);
+let colorBoundary = 1
 let colorScale = d3.scale.linear<string, number>()
-    .domain([-1, 0, 1])  // value 范围
+    .domain([-0.1, 0, 0.1])  // value 范围
     .range(["#f59322", "#e8eaeb", "#0877bd"])  // color 范围
     .clamp(true);    // 钳位，返回值不会超出 range 范围
 let iter = 0;
