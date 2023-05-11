@@ -55,6 +55,13 @@ export let normalizations: {[key: string]: number} = {
   "LN": 2
 };
 
+/** A map between normalization place names and flag. */
+export let normPlaces: {[key: string]: number} = {
+  "before": 0,
+  "after": 1
+};
+
+
 /** A map between optimizer names and flag. */
 export let optimizers: {[key: string]: number} = {
   "SGD": 0,
@@ -159,8 +166,9 @@ export class State {
   percTrainData = 50;
   activation = nn.Activations.TANH;
   regularization: nn.RegularizationFunction = null;
-  normalization = 0 // 暂时用俩数字 flag 表示选择结果
-  optimizer = 0  // 暂时用俩数字 flag 表示选择结果
+  normalization = 0; // 暂时用俩数字 flag 表示选择结果
+  normPlace = 0;    // 暂时用俩数字 flag 表示选择结果
+  optimizer = 0;  // 暂时用俩数字 flag 表示选择结果
   problem = Problem.CLASSIFICATION;
   initZero = false;
   hideText = false;

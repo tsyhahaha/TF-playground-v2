@@ -23,7 +23,7 @@ import {
     problems,
     regularizations,
     getKeyFromValue,
-    Problem, optimizers, normalizations
+    Problem, optimizers, normalizations, normPlaces
 } from "./state";
 import {Example2D, shuffle} from "./dataset";
 import {AppendingLineChart} from "./linechart";
@@ -377,23 +377,33 @@ function makeGUI() {
         getKeyFromValue(regularizations, state.regularization));
 
     // Normalization selector
-    let optimizerDropdown = d3.select("#normalization").on("change",
+    let normalizationDropdown = d3.select("#normalization").on("change",
         function () {
             state.normalization = normalizations[this.value];
             parametersChanged = true;
             reset();
         });
-    optimizerDropdown.property("value",
+    normalizationDropdown.property("value",
         getKeyFromValue(normalizations, state.normalization));
 
+    // Normalization place selector
+    let normPlaceDropdown = d3.select("#normPlace").on("change",
+        function () {
+            state.normPlace = normPlaces[this.value];
+            parametersChanged = true;
+            reset();
+        });
+    normPlaceDropdown.property("value",
+        getKeyFromValue(normPlaces, state.normalization));
+
     // Optimizer selector
-    let normalizationDropdown = d3.select("#optimizer").on("change",
+    let optimizerDropdown = d3.select("#optimizer").on("change",
         function () {
             state.optimizer = optimizers[this.value];
             parametersChanged = true;
             reset();
         });
-    normalizationDropdown.property("value",
+    optimizerDropdown.property("value",
         getKeyFromValue(regularizations, state.optimizer));
 
     // Regularization rate selector
@@ -1091,6 +1101,14 @@ export function getOutputWeights(network: nn.Node[][]): number[] {
   网络参数更改时，需要重新初始化网络，first step
  */
 function reset(onStartup = false) {
+    if(state.normalization == 0) {
+        d3.select(".control.ui-normPlace")
+            .style("display", "none");
+    } else {
+        d3.select(".control.ui-normPlace")
+            .style("display", null);
+    }
+
     if (state.converge_epoch > 0) {
         d3.select("#converge-epoch").text(state.converge_epoch);
     }
@@ -1118,14 +1136,14 @@ function reset(onStartup = false) {
         normLayerList = null
     } else {
         normLayerList = {}
-        for (let i = 1; i < network.length-1; i++) {        // 暂时每一层都加一个
+        for (let i = 1; i < network.length-2; i++) {        // 暂时每一层都加一个
             normLayerList[i] = {}
             if(state.normalization == 1) {
                 normLayerList[i]['layer'] = new BatchNormalization(shape[i]);
-                normLayerList[i]['place'] = 0;  // 暂时都设置为0
+                normLayerList[i]['place'] = state.normPlace;  // 暂时都设置为0
             } else if(state.normalization == 2) {
                 normLayerList[i]['layer'] = new LayerNormalization(shape[i])
-                normLayerList[i]['place'] = 0;
+                normLayerList[i]['place'] = state.normPlace;
             }
         }
     }
