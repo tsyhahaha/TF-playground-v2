@@ -287,7 +287,7 @@ type NormLayer = {
     v_t_alpha: number[];
     v_t_delta: number[];
 
-    forward(X: number[][]): number[][];
+    forward(X: number[][],mode:string): number[][];
     backward(dOutput: number[][]): number[][];
 };
 export class LayerNormalization implements NormLayer {
@@ -372,7 +372,31 @@ export class LayerNormalization implements NormLayer {
                 this.dDelta[j] += dOutput[j][i];
                 this.dAlpha[j] += dOutput[j][i] * this.Xnorm[j][i];
             }}
+/*
+    for (let i = 0; i < D; i++) {
+        // Calculate gradients for alpha and delta
+        for (let j = 0; j < N; j++) {
+            this.dAlpha[i] += dOutput[i][j] * this.Xnorm[i][j];
+            this.dDelta[i] += dOutput[i][j];
+        }
 
+        // Calculate mean of dOutput for current dimension
+        let dOutputMean = this.dDelta[i] / N;
+
+        // Calculate dot product of dOutput and Xnorm for current dimension
+        let dOutputXnorm = 0;
+        for (let j = 0; j < N; j++) {
+            dOutputXnorm += dOutput[i][j] * this.Xnorm[i][j];
+        }
+        dOutputXnorm /= N;
+
+        // Calculate gradient for input
+        for (let j = 0; j < N; j++) {
+            this.dInput[i][j] = 1 / this.varData[i] * (dOutput[i][j] - this.inputData[i][j] * dOutputXnorm - dOutputMean);
+        }
+    }
+    return this.dInput;
+}*/
         for (let i = 0; i < N; i++) {
             let sumdOutput = 0;
             let sumdOutputXnorm = 0;
@@ -444,7 +468,7 @@ export class BatchNormalization implements NormLayer {
     }
 
 
-    forward(X: number[][]): number[][] { // mode: 'train' or 'eval'
+    forward(X: number[][],mode:string): number[][] { // mode: 'train' or 'eval'
 
         // console.log('here!');
         this.inputData = Copy(X);
@@ -458,7 +482,7 @@ export class BatchNormalization implements NormLayer {
         let average = new Array(L);
         let dispersion = new Array(L);
         //如果不是训练模式,固定的在训练中得出的mean和var计算：
-        /*if (mode === 'eval') {
+        if (mode === 'eval') {
             for (let i = 0; i < L; i++) {
                 for (let j = 0; j < N; j++) {
                     Xnorm[i][j] = (X[i][j] - this.avgMoving[i]) / Math.sqrt(this.varMoving[i] + this.eps);
@@ -467,7 +491,7 @@ export class BatchNormalization implements NormLayer {
             }
             this.Xnorm = Copy(Xnorm);
             return this.outputData;
-        }*/
+        }
         let flagInput = false;
         let flagOutput = false;
         for (let i = 0; i < L; i++) {
@@ -749,7 +773,7 @@ export function buildNetwork(
  * @return The final output of the network.
  */
 export function forwardProp(network: Node[][], inputs: number[][], batchSize: number,
-                            normLayerList: { [layerNum: number]: { layer: NormLayer, place: number } }): number[] {
+                            normLayerList: { [layerNum: number]: { layer: NormLayer, place: number } },mode:string): number[] {
     let inputLayer = network[0];
     if (inputs[0].length !== inputLayer.length) {
         throw new Error("The number of inputs must match the number of nodes in" +
@@ -783,7 +807,7 @@ export function forwardProp(network: Node[][], inputs: number[][], batchSize: nu
                 let normLayer = normLayerList[layerIdx]['layer'];
                 let input = LayerMethod.constructNormInput(currentLayer, place);
                 // console.log(input)   // checkpoint
-                let normResult = normLayer.forward(input);
+                let normResult = normLayer.forward(input,mode);
                 // console.log(normResult)
                 LayerMethod.layerActivateDir(currentLayer, batchSize, normResult);
             } else {
