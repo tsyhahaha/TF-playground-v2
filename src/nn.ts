@@ -546,10 +546,6 @@ export class BatchNormalization implements NormLayer {
                 this.dInput[i][j] += dOutput[i][j] * this.alpha[i] / Math.sqrt(this.batchVar[i] + this.eps) + dDisp * 2 * (this.inputData[i][j] - this.batchAvg[i]) / N + dAvg / N;
             }
         }
-        if (this.dInput[0].length == 0) {
-            console.log(dOutput)
-            console.log(this.dInput)
-        }
         return this.dInput;
     }
 }
@@ -755,7 +751,6 @@ export function buildNetwork(
  */
 export function forwardProp(network: Node[][], inputs: number[][], batchSize: number,
                             normLayerList: { [layerNum: number]: { layer: NormLayer, place: number } },mode:string): number[] {
-    console.log(inputs)
     let inputLayer = network[0];
     if (inputs[0].length !== inputLayer.length) {
         throw new Error("The number of inputs must match the number of nodes in" +
