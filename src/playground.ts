@@ -172,7 +172,7 @@ let linkWidthScale = d3.scale.linear()
     .range([1, 10])
     .clamp(true);
 let colorScale = d3.scale.linear<string, number>()
-    .domain([-0.011, 0, 0.011])  // value 范围
+    .domain([-1, 0, 1])  // value 范围
     .range(["#f59322", "#e8eaeb", "#0877bd"])  // color 范围
     .clamp(true);    // 钳位，返回值不会超出 range 范围
 let iter = 0;
@@ -425,12 +425,12 @@ function makeGUI() {
     problem.property("value", getKeyFromValue(problems, state.problem));
 
     // Add scale to the gradient color map. 右下角的那个 -1 到 1
-    let x = d3.scale.linear().domain([-0.11, 0.11]).range([0, 144]);  // 线性映射
+    let x = d3.scale.linear().domain([-1, 1]).range([0, 144]);  // 线性映射
     let xAxis = d3.svg.axis()
         .scale(x)   // 尺度函数
         .orient("bottom")   // 坐标轴标签相对坐标轴位置
-        .tickValues([-0.1, 0, 0.1]) // 指定刻度
-        .tickFormat(d3.format(".1f"));  // 刻度格式
+        .tickValues([-1, 0, 1]) // 指定刻度
+        .tickFormat(d3.format("d"));  // 刻度格式
     d3.select("#colormap g.core").append("g") // 添加 index (f12 ctrl+F)
         .attr("class", "x axis")
         .attr("transform", "translate(0,10)")
