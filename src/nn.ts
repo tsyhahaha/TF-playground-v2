@@ -85,9 +85,6 @@ export class Node {
 }
 
 class LayerMethod {
-    public static disLayerInfo(layer: Node[]) {
-
-    }
 
     public static layerInput(layer: Node[], batchSize: number) {
         /** to update node's total input at layer level */
@@ -312,7 +309,7 @@ export class LayerNormalization implements NormLayer {
         this.m_t_delta = new Array(dim);
         this.v_t_alpha = new Array(dim);
         this.v_t_delta = new Array(dim);
-        this.epsVal = 1e-5;
+        this.epsVal = 1e-6;
         for (let i = 0; i < dim; i++) {
             this.alpha[i] = 1;
             this.delta[i] = 0;
@@ -403,7 +400,6 @@ export class LayerNormalization implements NormLayer {
                 sumdOutput += dOutput[j][i];
                 sumdOutputXnorm += dOutput[j][i] * this.Xnorm[j][i];
             }
-
             for (let j = 0; j < D; j++) {
                 this.dInput[j][i] = (this.alpha[j] / (this.varData[i] * Math.sqrt(D))) * (D * dOutput[j][i] - sumdOutput - this.Xnorm[j][i] * sumdOutputXnorm);
             }
@@ -445,7 +441,7 @@ export class BatchNormalization implements NormLayer {
         this.delta = new Array(dim);
         this.batchAvg = new Array(dim);
         this.batchVar = new Array(dim);
-        this.eps = 1e-6;
+        this.eps = 1e-4;
         this.rateDecay = 0.95;
         this.m_t_alpha = new Array(dim);
         this.m_t_delta = new Array(dim);
@@ -800,14 +796,27 @@ export function forwardProp(network: Node[][], inputs: number[][], batchSize: nu
     if (normLayerList != null) {
         for (let layerIdx = 1; layerIdx < network.length - 1; layerIdx++) {
             let currentLayer = network[layerIdx];
+            if ((layerIdx - 1) in normLayerList && normLayerList[layerIdx - 1].place == 1) {
+                let prevOutput = normLayerList[layerIdx - 1].layer.outputData
+                LayerMethod.layerDInputDir(currentLayer, batchSize, prevOutput);
+            } else {
+                LayerMethod.layerInput(currentLayer, batchSize);
+            }
             if (layerIdx in normLayerList) {
                 let place = normLayerList[layerIdx]['place'];
                 let normLayer = normLayerList[layerIdx]['layer'];
-                let input = LayerMethod.constructNormInput(currentLayer, place);
                 // console.log(input)   // checkpoint
-                let normResult = normLayer.forward(input,mode);
-                // console.log(normResult)
-                LayerMethod.layerActivateDir(currentLayer, batchSize, normResult);
+                if(place == 0) {
+                    let input = LayerMethod.constructNormInput(currentLayer, place);
+                    let normResult = normLayer.forward(input,mode);
+                    // console.log(normResult)
+                    LayerMethod.layerActivateDir(currentLayer, batchSize, normResult);
+                } else if(place == 1) {
+                    LayerMethod.layerInput(currentLayer, batchSize);
+                    LayerMethod.layerActivate(currentLayer, batchSize);
+                    let input = LayerMethod.constructNormInput(currentLayer, place);
+                    normLayer.forward(input,mode);
+                }
             } else {
                 LayerMethod.layerInput(currentLayer, batchSize);
                 LayerMethod.layerActivate(currentLayer, batchSize);

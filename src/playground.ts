@@ -937,6 +937,7 @@ function updateDecisionBoundary(network: nn.Node[][], firstTime: boolean) {
                 boundary[nodeId]['non_norm'][i] = new Array(DENSITY);
             }
         }
+        let inputMatrix = []
         for (j = 0; j < DENSITY; j++) {
             // 1 for points inside the circle, and 0 for points outside the circle.
             let x = xScale(i);
