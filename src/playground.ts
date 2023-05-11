@@ -942,7 +942,7 @@ function updateDecisionBoundary(network: nn.Node[][], firstTime: boolean) {
             let x = xScale(i);
             let y = yScale(j);
             let input = constructInput(x, y);
-            nn.forwardProp(network, [input], 1, normLayerList);
+            nn.forwardProp(network, [input], 1, normLayerList , 'eval');
             nn.forEachNode(network, true, node => {
                 boundary[node.id]['non_norm'][i][j] = node.averageOutputNotNorm;
                 boundary[node.id]['norm'][i][j] = node.averageOutput;   // norm 结果保存处
@@ -963,7 +963,7 @@ function getLoss(network: nn.Node[][], dataPoints: Example2D[]): number {
     for (let i = 0; i < dataPoints.length; i++) {
         let dataPoint = dataPoints[i];
         let input = constructInput(dataPoint.x, dataPoint.y);
-        let output = nn.forwardProp(network, [input], 1, normLayerList);
+        let output = nn.forwardProp(network, [input], 1, normLayerList,'eval');
         loss += nn.Errors.SQUARE.error(output[0], dataPoint.label);
     }
     return loss / dataPoints.length;
@@ -1055,7 +1055,7 @@ function oneStep(): void {
         labelList.push(point.label);
         state.nowSize += 1;
         if (state.nowSize % state.batchSize === 0) {
-            nn.forwardProp(network, inputMatrix, state.nowSize, normLayerList);
+            nn.forwardProp(network, inputMatrix, state.nowSize, normLayerList,'train');
             nn.backProp(network, labelList, nn.Errors.SQUARE, state.nowSize, normLayerList);
             if (state.optimizer === 0) {
                 nn.updateWeightsSGD(network,

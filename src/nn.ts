@@ -228,7 +228,6 @@ class LayerMethod {
         }
     }
 
-
     public static constructNormInput(layer: Node[], type: number): number[][] {
         /**
          * type = 0: 获取activation前的结果
@@ -287,9 +286,134 @@ type NormLayer = {
     v_t_alpha: number[];
     v_t_delta: number[];
 
-    forward(X: number[][]): number[][];
+    forward(X: number[][],mode:string): number[][];
     backward(dOutput: number[][]): number[][];
 };
+export class LayerNormalization implements NormLayer {
+    alpha: number[];
+    delta: number[];
+    epsVal: number;
+    inputData: number[][];
+    Xnorm: number[][];
+    outputData: number[][];
+    varData: number[];
+    dAlpha: number[];
+    dDelta: number[];
+    dInput: number[][];
+    m_t_alpha: number[];
+    m_t_delta: number[];
+    v_t_alpha: number[];
+    v_t_delta: number[];
+
+    constructor(dim: number) {
+        this.alpha = new Array(dim);
+        this.delta = new Array(dim);
+        this.m_t_alpha = new Array(dim);
+        this.m_t_delta = new Array(dim);
+        this.v_t_alpha = new Array(dim);
+        this.v_t_delta = new Array(dim);
+        this.epsVal = 1e-5;
+        for (let i = 0; i < dim; i++) {
+            this.alpha[i] = 1;
+            this.delta[i] = 0;
+            this.m_t_alpha[i] = 0;
+            this.m_t_delta[i] = 0;
+            this.v_t_alpha[i] = 0;
+            this.v_t_delta[i] = 0;
+        }
+    }
+    forward(X: number[][]): number[][] {
+        this.inputData = Copy(X);
+        this.outputData = Copy(X);
+        let D = X.length;
+        let N = X[0].length;
+        if(N == 1) {
+            return this.outputData;
+        }
+        let avg = new Array(N);
+        let varData = new Array(N);
+        let Xnorm = Copy(X);
+
+        for (let i = 0; i < N; i++) {
+            avg[i] = 0;
+            varData[i] = 0;
+            for (let j = 0; j < D; j++) {
+                avg[i] += X[j][i];
+            }
+            avg[i] /= D;
+            for (let j = 0; j < D; j++) {
+                varData[i] += (X[j][i] - avg[i]) * (X[j][i] - avg[i]);
+            }
+            varData[i] = Math.sqrt(varData[i] / D + this.epsVal);
+            for (let j = 0; j < D; j++) {
+                Xnorm[j][i] = (X[j][i] - avg[i]) / varData[i];
+                this.outputData[j][i] = this.alpha[j] * Xnorm[j][i] + this.delta[j];
+            }
+        }
+        this.Xnorm = Copy(Xnorm);
+        this.varData = Copy1D(varData);
+        return this.outputData;
+    }
+
+    backward(dOutput: number[][]): number[][] {
+        let D = dOutput.length;
+        let N = dOutput[0].length;
+        this.dInput = Copy(dOutput);
+        if(N == 1) {
+            return this.dInput;
+        }
+        this.dAlpha = new Array(D)
+        this.dDelta = new Array(D);
+        for (let j = 0; j < D; j++) {
+            this.dDelta[j] = 0;
+            this.dAlpha[j] = 0;
+            for (let i = 0; i < N; i++) {
+                this.dDelta[j] += dOutput[j][i];
+                this.dAlpha[j] += dOutput[j][i] * this.Xnorm[j][i];
+            }}
+/*
+    for (let i = 0; i < D; i++) {
+        // Calculate gradients for alpha and delta
+        for (let j = 0; j < N; j++) {
+            this.dAlpha[i] += dOutput[i][j] * this.Xnorm[i][j];
+            this.dDelta[i] += dOutput[i][j];
+        }
+
+        // Calculate mean of dOutput for current dimension
+        let dOutputMean = this.dDelta[i] / N;
+
+        // Calculate dot product of dOutput and Xnorm for current dimension
+        let dOutputXnorm = 0;
+        for (let j = 0; j < N; j++) {
+            dOutputXnorm += dOutput[i][j] * this.Xnorm[i][j];
+        }
+        dOutputXnorm /= N;
+
+        // Calculate gradient for input
+        for (let j = 0; j < N; j++) {
+            this.dInput[i][j] = 1 / this.varData[i] * (dOutput[i][j] - this.inputData[i][j] * dOutputXnorm - dOutputMean);
+        }
+    }
+    return this.dInput;
+}*/
+        for (let i = 0; i < N; i++) {
+            let sumdOutput = 0;
+            let sumdOutputXnorm = 0;
+            for (let j = 0; j < D; j++) {
+                sumdOutput += dOutput[j][i];
+                sumdOutputXnorm += dOutput[j][i] * this.Xnorm[j][i];
+            }
+
+            for (let j = 0; j < D; j++) {
+                this.dInput[j][i] = (this.alpha[j] / (this.varData[i] * Math.sqrt(D))) * (D * dOutput[j][i] - sumdOutput - this.Xnorm[j][i] * sumdOutputXnorm);
+            }
+        }
+        return this.dInput;
+    }
+
+    dispersion: number[];
+
+}
 
 export class BatchNormalization implements NormLayer {
     dispersion: number[];
@@ -342,7 +466,8 @@ export class BatchNormalization implements NormLayer {
         }
     }
 
-    forward(X: number[][]): number[][] {
+
+    forward(X: number[][],mode:string): number[][] { // mode: 'train' or 'eval'
 
         // console.log('here!');
         this.inputData = Copy(X);
@@ -356,7 +481,7 @@ export class BatchNormalization implements NormLayer {
         let average = new Array(L);
         let dispersion = new Array(L);
         //如果不是训练模式,固定的在训练中得出的mean和var计算：
-        /*if (mode === 'eval') {
+        if (mode === 'eval') {
             for (let i = 0; i < L; i++) {
                 for (let j = 0; j < N; j++) {
                     Xnorm[i][j] = (X[i][j] - this.avgMoving[i]) / Math.sqrt(this.varMoving[i] + this.eps);
@@ -365,7 +490,7 @@ export class BatchNormalization implements NormLayer {
             }
             this.Xnorm = Copy(Xnorm);
             return this.outputData;
-        }*/
+        }
         let flagInput = false;
         let flagOutput = false;
         for (let i = 0; i < L; i++) {
@@ -444,109 +569,6 @@ export class BatchNormalization implements NormLayer {
         }
         return this.dInput;
     }
-}
-
-export class LayerNormalization implements NormLayer {
-
-    alpha: number[];
-    delta: number[];
-    epsVal: number;
-    inputData: number[][];
-    Xnorm: number[][];
-    outputData: number[][];
-    varData: number[];
-    dAlpha: number[];
-    dDelta: number[];
-    dInput: number[][];
-    m_t_alpha: number[];
-    m_t_delta: number[];
-    v_t_alpha: number[];
-    v_t_delta: number[];
-
-    constructor(dim: number) {
-        this.alpha = new Array(dim);
-        this.delta = new Array(dim);
-        this.m_t_alpha = new Array(dim);
-        this.m_t_delta = new Array(dim);
-        this.v_t_alpha = new Array(dim);
-        this.v_t_delta = new Array(dim);
-        this.epsVal = 1e-5;
-        for (let i = 0; i < dim; i++) {
-            this.alpha[i] = 1;
-            this.delta[i] = 0;
-            this.m_t_alpha[i] = 0;
-            this.m_t_delta[i] = 0;
-            this.v_t_alpha[i] = 0;
-            this.v_t_delta[i] = 0;
-        }
-    }
-
-    forward(X: number[][]): number[][] {
-        this.inputData = Copy(X);
-        this.outputData = Copy(X);
-        let D = X.length;
-        let N = X[0].length;
-        if (N == 1) {
-            return this.outputData;
-        }
-        let avg = new Array(N);
-        let varData = new Array(N);
-        let Xnorm = Copy(X);
-
-        for (let i = 0; i < N; i++) {
-            avg[i] = 0;
-            varData[i] = 0;
-            for (let j = 0; j < D; j++) {
-                avg[i] += X[j][i];
-            }
-            avg[i] /= D;
-            for (let j = 0; j < D; j++) {
-                varData[i] += (X[j][i] - avg[i]) * (X[j][i] - avg[i]);
-            }
-            varData[i] = Math.sqrt(varData[i] / D + this.epsVal);
-            for (let j = 0; j < D; j++) {
-                Xnorm[j][i] = (X[j][i] - avg[i]) / varData[i];
-                this.outputData[j][i] = this.alpha[j] * Xnorm[j][i] + this.delta[j];
-            }
-        }
-        this.Xnorm = Copy(Xnorm);
-        this.varData = Copy1D(varData);
-        return this.outputData;
-    }
-
-    backward(dOutput: number[][]): number[][] {
-        let D = dOutput.length;
-        let N = dOutput[0].length;
-        this.dInput = Copy(dOutput);
-        if (N == 1) {
-            return this.dInput;
-        }
-        this.dAlpha = new Array(D);
-        this.dDelta = new Array(D);
-        for (let j = 0; j < D; j++) {
-            this.dDelta[j] = 0;
-            this.dAlpha[j] = 0;
-            for (let i = 0; i < N; i++) {
-                this.dDelta[j] += dOutput[j][i];
-                this.dAlpha[j] += dOutput[j][i] * this.Xnorm[j][i];
-            }
-        }
-        for (let i = 0; i < N; i++) {
-            let sumdXnorm = 0;
-            let sumdXnormX = 0;
-            for (let k = 0; k < D; k++) {
-                sumdXnorm += (dOutput[k][i] * this.alpha[k]);
-                sumdXnormX += (dOutput[k][i] * this.alpha[k] * this.Xnorm[k][i]);
-            }
-            for (let j = 0; j < D; j++) {
-                this.dInput[j][i] = 1 / (D * this.varData[i]) * (D * dOutput[j][i] * this.alpha[j] - this.Xnorm[j][i] * sumdXnormX - sumdXnorm);
-            }
-        }
-        return this.dInput;
-    }
-
-    dispersion: number[];
-
 }
 
 
@@ -749,7 +771,7 @@ export function buildNetwork(
  * @return The final output of the network.
  */
 export function forwardProp(network: Node[][], inputs: number[][], batchSize: number,
-                            normLayerList: { [layerNum: number]: { layer: NormLayer, place: number } }): number[] {
+                            normLayerList: { [layerNum: number]: { layer: NormLayer, place: number } },mode:string): number[] {
     let inputLayer = network[0];
     if (inputs[0].length !== inputLayer.length) {
         throw new Error("The number of inputs must match the number of nodes in" +
@@ -783,7 +805,7 @@ export function forwardProp(network: Node[][], inputs: number[][], batchSize: nu
                 let normLayer = normLayerList[layerIdx]['layer'];
                 let input = LayerMethod.constructNormInput(currentLayer, place);
                 // console.log(input)   // checkpoint
-                let normResult = normLayer.forward(input);
+                let normResult = normLayer.forward(input,mode);
                 // console.log(normResult)
                 LayerMethod.layerActivateDir(currentLayer, batchSize, normResult);
             } else {
