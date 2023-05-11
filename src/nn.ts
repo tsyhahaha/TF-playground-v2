@@ -464,14 +464,12 @@ export class BatchNormalization implements NormLayer {
 
 
     forward(X: number[][],mode:string): number[][] { // mode: 'train' or 'eval'
-
-        // console.log('here!');
         this.inputData = Copy(X);
         this.outputData = Copy(X);
         let Xnorm = Copy(X);
         let L = X.length;
         let N = X[0].length;
-        if (N == 1) {
+        if (N <= 1) {
             return this.inputData;
         }
         let average = new Array(L);
@@ -513,15 +511,6 @@ export class BatchNormalization implements NormLayer {
             this.avgMoving[i] = this.rateDecay * this.avgMoving[i] + (1 - this.rateDecay) * average[i];
             this.varMoving[i] = this.rateDecay * this.varMoving[i] + (1 - this.rateDecay) * dispersion[i];
         }
-        if (flagInput) {
-            console.log("batch norm input is nan")
-            console.log(this.inputData);
-        }
-        if (flagOutput) {
-            console.log("batch norm output is nan");
-            console.log(this.inputData);
-            console.log(this.outputData)
-        }
         this.Xnorm = Copy(Xnorm);
         this.batchAvg = Copy1D(average);
         this.batchVar = Copy1D(dispersion);
@@ -532,11 +521,9 @@ export class BatchNormalization implements NormLayer {
         let L = dOutput.length;     // batch size
         let N = dOutput[0].length;  // feature size
         this.dInput = Copy(dOutput);
-        if (N == 1) {
+        if (N <= 1) {
             return this.dInput;
         }
-        let flagInput = false;
-        let flagOutput = false;
         this.dAlpha = new Array(N);
         this.dDelta = new Array(N);
         for (let i = 0; i < L; i++) {
@@ -768,6 +755,7 @@ export function buildNetwork(
  */
 export function forwardProp(network: Node[][], inputs: number[][], batchSize: number,
                             normLayerList: { [layerNum: number]: { layer: NormLayer, place: number } },mode:string): number[] {
+    console.log(inputs)
     let inputLayer = network[0];
     if (inputs[0].length !== inputLayer.length) {
         throw new Error("The number of inputs must match the number of nodes in" +
@@ -893,9 +881,11 @@ export function backProp(network: Node[][], target: number[],
  * @param beta1 - Adam方法的一阶动量衰减率。
  * @param beta2 - Adam方法的二阶动量衰减率。
  * @param epsilon - 防止除零错误的小量值。
+ * @param batchSize
  */
-export function updateWeightsAdam(network: Node[][], learningRate: number,
-                                  beta1: number = 0.99, beta2: number = 0.999, epsilon: number = 10e-8) {
+export function updateWeightsAdam(network: Node[][], learningRate: number,batchSize:number,
+                                  beta1: number = 0.99, beta2: number = 0.999, epsilon: number = 10e-8
+                                  ) {
     let m: number[][][] = [];  // 一阶动量
     let v: number[][][] = [];  // 二阶动量
     let t = 0;  // 时间步长
@@ -909,9 +899,9 @@ export function updateWeightsAdam(network: Node[][], learningRate: number,
             m[layerIdx][i] = new Array(node.inputLinks.length + 1);
             v[layerIdx][i] = new Array(node.inputLinks.length + 1);
             // 更新节点的偏置
-            let numAccumulatedDers = node.inputDer.length
+            let numAccumulatedDers = batchSize
             let accInputDer = 0
-            for (let j = 0; j < node.inputDer.length; j++) {
+            for (let j = 0; j < batchSize; j++) {
                 accInputDer += node.inputDer[j];
             }
             if (numAccumulatedDers > 0) {
@@ -919,7 +909,7 @@ export function updateWeightsAdam(network: Node[][], learningRate: number,
                 if (isNaN(node.bias)) {
                     console.log('node bias is nan1, id=' + node.id)
                 }
-                for (let j = 0; j < node.inputDer.length; j++) {
+                for (let j = 0; j < batchSize; j++) {
                     node.inputDer[i] = 0;
                 }
             }
@@ -955,23 +945,28 @@ export function updateWeightsAdam(network: Node[][], learningRate: number,
 }
 
 export function updateWeightsSGD(network: Node[][], learningRate: number,
-                                 regularizationRate: number) {
+                                 regularizationRate: number, batchSize: number) {
     for (let layerIdx = 1; layerIdx < network.length; layerIdx++) {
         let currentLayer = network[layerIdx];
         for (let i = 0; i < currentLayer.length; i++) {
             let node = currentLayer[i];
             // Update the node's bias.
-            let numAccumulatedDers = node.inputDer.length
+            let numAccumulatedDers = batchSize
             let accInputDer = 0
-            for (let j = 0; j < node.inputDer.length; j++) {
-                accInputDer += node.inputDer[j];
+            for (let j = 0; j < batchSize; j++) {
+                if(isNaN(node.inputDer[j])) {
+                    console.log("inputDer is nan: "+node.inputDer)
+                }else {
+                    accInputDer += node.inputDer[j];
+                }
             }
             if (numAccumulatedDers > 0) {
                 node.bias -= learningRate * accInputDer / numAccumulatedDers;
                 if (isNaN(node.bias)) {
                     console.log('node bias is nan2, id=' + node.id)
+                    console.log(numAccumulatedDers, accInputDer)
                 }
-                for (let j = 0; j < node.inputDer.length; j++) {
+                for (let j = 0; j < batchSize; j++) {
                     node.inputDer[i] = 0;
                 }
             }
