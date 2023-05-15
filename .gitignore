@@ -5,3 +5,4 @@ dist/
 .idea/
 test.js
 test.ts
+*.png
