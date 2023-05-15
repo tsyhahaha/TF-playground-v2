@@ -8,5 +8,4 @@ To run the visualization locally, run:
 Github已开源：https://github.com/tsyhahaha/new_playground
 
 Contributor: 修曾琪  人工智能研究院 
-
              陶思远  高工
