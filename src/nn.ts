@@ -361,6 +361,8 @@ export class LayerNormalization implements NormLayer {
         }
         this.dAlpha = new Array(D)
         this.dDelta = new Array(D);
+
+
         for (let j = 0; j < D; j++) {
             this.dDelta[j] = 0;
             this.dAlpha[j] = 0;
@@ -368,31 +370,31 @@ export class LayerNormalization implements NormLayer {
                 this.dDelta[j] += dOutput[j][i];
                 this.dAlpha[j] += dOutput[j][i] * this.Xnorm[j][i];
             }}
-/*
-    for (let i = 0; i < D; i++) {
-        // Calculate gradients for alpha and delta
-        for (let j = 0; j < N; j++) {
-            this.dAlpha[i] += dOutput[i][j] * this.Xnorm[i][j];
-            this.dDelta[i] += dOutput[i][j];
-        }
+        /*
+            for (let i = 0; i < D; i++) {
+                // Calculate gradients for alpha and delta
+                for (let j = 0; j < N; j++) {
+                    this.dAlpha[i] += dOutput[i][j] * this.Xnorm[i][j];
+                    this.dDelta[i] += dOutput[i][j];
+                }
 
-        // Calculate mean of dOutput for current dimension
-        let dOutputMean = this.dDelta[i] / N;
+                // Calculate mean of dOutput for current dimension
+                let dOutputMean = this.dDelta[i] / N;
 
-        // Calculate dot product of dOutput and Xnorm for current dimension
-        let dOutputXnorm = 0;
-        for (let j = 0; j < N; j++) {
-            dOutputXnorm += dOutput[i][j] * this.Xnorm[i][j];
-        }
-        dOutputXnorm /= N;
+                // Calculate dot product of dOutput and Xnorm for current dimension
+                let dOutputXnorm = 0;
+                for (let j = 0; j < N; j++) {
+                    dOutputXnorm += dOutput[i][j] * this.Xnorm[i][j];
+                }
+                dOutputXnorm /= N;
 
-        // Calculate gradient for input
-        for (let j = 0; j < N; j++) {
-            this.dInput[i][j] = 1 / this.varData[i] * (dOutput[i][j] - this.inputData[i][j] * dOutputXnorm - dOutputMean);
-        }
-    }
-    return this.dInput;
-}*/
+                // Calculate gradient for input
+                for (let j = 0; j < N; j++) {
+                    this.dInput[i][j] = 1 / this.varData[i] * (dOutput[i][j] - this.inputData[i][j] * dOutputXnorm - dOutputMean);
+                }
+            }
+            return this.dInput;
+        }*/
         for (let i = 0; i < N; i++) {
             let sumdOutput = 0;
             let sumdOutputXnorm = 0;
@@ -410,6 +412,8 @@ export class LayerNormalization implements NormLayer {
     dispersion: number[];
 
 }
+
+
 
 export class BatchNormalization implements NormLayer {
     dispersion: number[];
