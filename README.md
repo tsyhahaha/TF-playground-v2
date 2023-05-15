@@ -6,5 +6,7 @@ To run the visualization locally, run:
 - `npm run serve` to serve from the `dist/` directory and open a page on your browser.
 
 Github已开源：https://github.com/tsyhahaha/new_playground
+
 Contributor: 修曾琪  人工智能研究院 
+
              陶思远  高工
